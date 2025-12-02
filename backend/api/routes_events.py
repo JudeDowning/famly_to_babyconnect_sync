@@ -15,6 +15,8 @@ class EventOut(BaseModel):
     start_time_utc: str
     matched: bool = False
     summary: str | None = None
+    raw_text: str | None = None
+    raw_data: dict | None = None
 
 @router.get("/events", response_model=List[EventOut])
 def list_events(source: str = Query(..., regex="^(famly|baby_connect)$")):
@@ -35,5 +37,7 @@ def list_events(source: str = Query(..., regex="^(famly|baby_connect)$")):
             start_time_utc=e.start_time_utc.isoformat(),
             matched=False,  # placeholder until matching is wired
             summary=e.details_json.get("raw_text") if isinstance(e.details_json, dict) else None,
+            raw_text=e.details_json.get("raw_text") if isinstance(e.details_json, dict) else None,
+            raw_data=e.details_json.get("raw_data") if isinstance(e.details_json, dict) else None,
         ))
     return output

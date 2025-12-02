@@ -3,6 +3,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 
 from .config import DB_PATH
+DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 from .models import Base
 
 DATABASE_URL = f"sqlite:///{DB_PATH}"
@@ -12,7 +13,12 @@ engine = create_engine(
     connect_args={"check_same_thread": False},
 )
 
-SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+SessionLocal = sessionmaker(
+    bind=engine,
+    autoflush=False,
+    autocommit=False,
+    expire_on_commit=False,
+)
 
 def init_db() -> None:
     """

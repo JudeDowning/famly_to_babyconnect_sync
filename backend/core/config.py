@@ -23,3 +23,5 @@ CORS_ORIGINS = os.getenv("CORS_ORIGINS", "*").split(",")
 
 # Simple helper for logging
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
+LOG_DIR = Path(os.getenv("LOG_DIR", BASE_DIR / "data" / "logs"))
+LOG_FILE = Path(os.getenv("LOG_FILE", LOG_DIR / "famly_sync.log"))

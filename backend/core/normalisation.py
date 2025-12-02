@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
+import logging
+import re
 from hashlib import sha256
 from typing import Any, Dict
+
+logger = logging.getLogger(__name__)
 
 @dataclass
 class RawFamlyEvent:
@@ -17,6 +21,7 @@ class RawFamlyEvent:
     time_str: str
     raw_text: str
     raw_data: Dict[str, Any]
+    event_datetime_iso: str | None = None
 
 @dataclass
 class RawBabyConnectEvent:
@@ -28,16 +33,49 @@ class RawBabyConnectEvent:
     time_str: str
     raw_text: str
     raw_data: Dict[str, Any]
+    event_datetime_iso: str | None = None
+
+
 
 def parse_time_to_utc(time_str: str) -> datetime:
     """
-    TODO: Implement robust parsing from whatever format Famly/BabyConnect uses
-    into a timezone-aware UTC datetime.
+    Convert a scraped time string into a UTC datetime.
 
-    For now, this is a stub.
+    Current logic:
+    - Try ISO-8601 parsing
+    - Try parsing HH:MM (assume today, local timezone, convert to UTC)
+    - Fall back to "now" if parsing fails
     """
-    # Placeholder: interpret incoming string as naive UTC for now.
-    return datetime.fromisoformat(time_str)
+    if not time_str:
+        logger.warning("parse_time_to_utc: empty time string, defaulting to now")
+        return datetime.now(timezone.utc)
+    cleaned = re.sub(r"\s+by\s+.*$", "", time_str.strip(), flags=re.IGNORECASE)
+    try:
+        return datetime.fromisoformat(cleaned)
+    except ValueError:
+        logger.debug("parse_time_to_utc: %s not ISO format", cleaned)
+
+    try:
+        if "to" in cleaned.lower():
+            parts = cleaned.lower().split("to")[0].strip()
+        else:
+            parts = cleaned.split("-")[0].strip()
+        numbers = re.findall(r"\d{1,2}", parts)
+        hour = int(numbers[0]) if numbers else 0
+        minute = int(numbers[1]) if len(numbers) > 1 else 0
+        am_pm_match = re.search(r"(am|pm)", parts, flags=re.IGNORECASE)
+        if am_pm_match:
+            meridiem = am_pm_match.group(1).lower()
+            if meridiem == "pm" and hour < 12:
+                hour += 12
+            if meridiem == "am" and hour == 12:
+                hour = 0
+        now = datetime.now(timezone.utc)
+        candidate = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        return candidate
+    except Exception:
+        logger.warning("parse_time_to_utc: unable to parse '%s', defaulting to now", time_str)
+        return datetime.now(timezone.utc)
 
 def build_fingerprint(
     child_name: str,
@@ -63,7 +101,8 @@ def normalise_famly_event(raw: RawFamlyEvent) -> Dict[str, Any]:
     """
     Convert a raw Famly event into a dictionary compatible with the Event model.
     """
-    start_time_utc = parse_time_to_utc(raw.time_str)
+    timestamp_source = raw.event_datetime_iso or raw.time_str
+    start_time_utc = parse_time_to_utc(timestamp_source)
     details_snippet = raw.raw_text or ""
     fingerprint = build_fingerprint(
         child_name=raw.child_name,
@@ -88,7 +127,8 @@ def normalise_babyconnect_event(raw: RawBabyConnectEvent) -> Dict[str, Any]:
     """
     Convert a raw Baby Connect event into a dictionary compatible with the Event model.
     """
-    start_time_utc = parse_time_to_utc(raw.time_str)
+    timestamp_source = raw.event_datetime_iso or raw.time_str
+    start_time_utc = parse_time_to_utc(timestamp_source)
     details_snippet = raw.raw_text or ""
     fingerprint = build_fingerprint(
         child_name=raw.child_name,

@@ -10,17 +10,37 @@ def get_status():
     Return a lightweight status snapshot for the dashboard.
     """
     with get_session() as session:
-        famly_cred = session.query(Credential).filter(Credential.service_name == "famly").first()
-        bc_cred = session.query(Credential).filter(Credential.service_name == "baby_connect").first()
-        famly_events_count = session.query(Event).filter(Event.source_system == "famly").count()
-        bc_events_count = session.query(Event).filter(Event.source_system == "baby_connect").count()
+        famly_cred = (
+            session.query(Credential)
+            .filter(Credential.service_name == "famly")
+            .first()
+        )
+        bc_cred = (
+            session.query(Credential)
+            .filter(Credential.service_name == "baby_connect")
+            .first()
+        )
+        famly_events_count = (
+            session.query(Event)
+            .filter(Event.source_system == "famly")
+            .count()
+        )
+        bc_events_count = (
+            session.query(Event)
+            .filter(Event.source_system == "baby_connect")
+            .count()
+        )
 
     return {
         "famly": {
             "has_credentials": bool(famly_cred),
+            "email": famly_cred.email if famly_cred else None,
+            "last_connected_at": famly_cred.updated_at.isoformat() if famly_cred and famly_cred.updated_at else None,
         },
         "baby_connect": {
             "has_credentials": bool(bc_cred),
+            "email": bc_cred.email if bc_cred else None,
+            "last_connected_at": bc_cred.updated_at.isoformat() if bc_cred and bc_cred.updated_at else None,
         },
         "counts": {
             "famly_events": famly_events_count,
