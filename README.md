@@ -64,7 +64,7 @@ Browse to `http://localhost:8000` to open the UI.
 ## Home Assistant Installation
 
 1. Add this repository as a custom add-on repo or copy the code into your HA add-on folder.
-2. Build/install the add-on (`config.yaml` + `Dockerfile` are HA-compliant).
+2. Build/install the add-on (`addon/config.yaml` + `addon/Dockerfile` are HA-compliant).
 3. Map `/data` (default) for DB and Playwright profiles.
 4. Start the add-on; the UI is available via ingress or the exposed port.
 5. Use the dashboard to store Famly/Baby Connect credentials, scrape, and sync.
@@ -172,9 +172,9 @@ All endpoints return JSON and require no authentication when running locally. Fo
 
 ### Containerisation
 
-- Root `Dockerfile` builds the frontend (Node stage) then bundles it with the backend on top of `mcr.microsoft.com/playwright/python`.
+- Root `addon/Dockerfile` builds the frontend (Node stage) then bundles it with the backend on top of `mcr.microsoft.com/playwright/python`.
 - `docker/entrypoint.sh` launches Uvicorn with the configured host/port.
-- `config.yaml` is the HA add-on manifest (ingress-enabled, `/data` mapped read/write).
+- `addon/config.yaml` is the HA add-on manifest (ingress-enabled, `/data` mapped read/write).
 
 ---
 
@@ -210,3 +210,5 @@ Tips:
 - Expand logging/status history view in the dashboard.
 
 Contributions and issue reports are welcome!
+
+
