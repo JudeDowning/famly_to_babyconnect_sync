@@ -36,12 +36,12 @@ Headless Playwright automation that scrapes activities from the Famly nursery pl
 
 ```bash
 # build image from repo root
-docker build -t famly-sync .
+docker build -t famly-sync famly_to_babyconnect_sync
 
 # run container
 docker run \
   -p 8000:8000 \
-  -v "$(pwd)/data:/data" \
+  -v "$(pwd)/famly_to_babyconnect_sync/data:/data" \
   -e HEADLESS=true \
   famly-sync
 ```
@@ -64,7 +64,7 @@ Browse to `http://localhost:8000` to open the UI.
 ## Home Assistant Installation
 
 1. Add this repository as a custom add-on repo or copy the code into your HA add-on folder.
-2. Build/install the add-on (`addon/config.yaml` + `addon/Dockerfile` are HA-compliant).
+2. Build/install the add-on (`famly_to_babyconnect_sync/config.yaml` + `famly_to_babyconnect_sync/Dockerfile` are HA-compliant).
 3. Map `/data` (default) for DB and Playwright profiles.
 4. Start the add-on; the UI is available via ingress or the exposed port.
 5. Use the dashboard to store Famly/Baby Connect credentials, scrape, and sync.
@@ -153,42 +153,51 @@ All endpoints return JSON and require no authentication when running locally. Fo
 
 ## Architecture Overview
 
+(Paths below are relative to the `famly_to_babyconnect_sync/` directory.)
+
+
+
 ### Backend (FastAPI + Playwright)
 
-- `backend/core/famly_client.py` – navigates Famly UI, scrapes events.
-- `backend/core/babyconnect_client.py` – logs into Baby Connect and submits forms.
-- `backend/core/normalisation.py` – converts scraped DOM nodes into a normalised event model and generates fingerprints.
-- `backend/core/sync_service.py` – orchestrates scraping, matching, filtering, and creation of missing entries.
-- `backend/core/storage.py` / `models.py` – SQLite storage for events, credentials, sync links.
-- `backend/core/settings_store.py` – persists event mappings and sync filters in JSON.
-- `backend/api/*` – FastAPI routers for credentials/status/events/sync/settings.
+- `famly_to_babyconnect_sync/backend/core/famly_client.py` – navigates Famly UI, scrapes events.
+- `famly_to_babyconnect_sync/backend/core/babyconnect_client.py` – logs into Baby Connect and submits forms.
+- `famly_to_babyconnect_sync/backend/core/normalisation.py` – converts scraped DOM nodes into a normalised event model and generates fingerprints.
+- `famly_to_babyconnect_sync/backend/core/sync_service.py` – orchestrates scraping, matching, filtering, and creation of missing entries.
+- `famly_to_babyconnect_sync/backend/core/storage.py` / `models.py` – SQLite storage for events, credentials, sync links.
+- `famly_to_babyconnect_sync/backend/core/settings_store.py` – persists event mappings and sync filters in JSON.
+- `famly_to_babyconnect_sync/backend/api/*` – FastAPI routers for credentials/status/events/sync/settings.
 
 ### Frontend (React + Vite)
 
-- `frontend/src/App.tsx` – three-column dashboard (Famly | Sync | Baby Connect).
-- `frontend/src/components/*` – Connection cards, comparison blocks, settings drawer, progress overlay, toast notifications.
-- `frontend/src/api.ts` – Fetch helpers for the API endpoints.
-- Built assets served from `frontend/dist` via FastAPI.
+- `famly_to_babyconnect_sync/frontend/src/App.tsx` – three-column dashboard (Famly | Sync | Baby Connect).
+- `famly_to_babyconnect_sync/frontend/src/components/*` – Connection cards, comparison blocks, settings drawer, progress overlay, toast notifications.
+- `famly_to_babyconnect_sync/frontend/src/api.ts` – Fetch helpers for the API endpoints.
+- Built assets served from `famly_to_babyconnect_sync/frontend/dist` via FastAPI.
 
 ### Containerisation
 
-- Root `addon/Dockerfile` builds the frontend (Node stage) then bundles it with the backend on top of `mcr.microsoft.com/playwright/python`.
-- `docker/entrypoint.sh` launches Uvicorn with the configured host/port.
-- `addon/config.yaml` is the HA add-on manifest (ingress-enabled, `/data` mapped read/write).
+- Root `famly_to_babyconnect_sync/Dockerfile` builds the frontend (Node stage) then bundles it with the backend on top of `mcr.microsoft.com/playwright/python`.
+- `famly_to_babyconnect_sync/entrypoint.sh` launches Uvicorn with the configured host/port.
+- `famly_to_babyconnect_sync/config.yaml` is the HA add-on manifest (ingress-enabled, `/data` mapped read/write).
 
 ---
 
 ## Development
 
+### Backend
+
 ```bash
-# backend
+cd famly_to_babyconnect_sync
 python -m venv .venv
-source .venv/bin/activate
+source .venv/bin/activate  # on Windows use: .venv\Scripts\activate
 pip install -r requirements.txt
 uvicorn backend.api.main:app --reload --port 8000
+```
 
-# frontend
-cd frontend
+### Frontend
+
+```bash
+cd famly_to_babyconnect_sync/frontend
 npm install
 npm run dev   # http://localhost:5173
 ```
