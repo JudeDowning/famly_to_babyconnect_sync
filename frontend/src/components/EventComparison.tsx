@@ -7,6 +7,12 @@ interface Props {
   famlyEvents: NormalisedEvent[];
   babyEvents: NormalisedEvent[];
   dateFormat: DateFormat;
+  onSyncEvent?: (eventId: number) => void;
+  syncingEventId?: number | null;
+  isBulkSyncing?: boolean;
+  showMissingOnly?: boolean;
+  onToggleMissing?: () => void;
+  controlsSlot?: React.ReactNode;
 }
 
 interface PairedRow {
@@ -50,7 +56,26 @@ const famlyIconMap: Record<string, string> = {
 
 const SIGN_EVENT_TYPES = ["signed in", "sign in", "signed out", "sign out"];
 
-const getIcon = (type: string | undefined | null, sourceLabel: string) => {
+const inferFamlyEventType = (event?: NormalisedEvent): string | undefined => {
+  if (!event) return undefined;
+  const base = (event.event_type || "").toLowerCase();
+  if (SIGN_EVENT_TYPES.includes(base)) {
+    return base;
+  }
+  const original = event.raw_data?.original_title?.toLowerCase() || "";
+  if (original.includes("signed into") || original.includes("signed in")) {
+    return "signed in";
+  }
+  if (original.includes("signed out")) {
+    return "signed out";
+  }
+  return base || undefined;
+};
+
+const getIcon = (
+  type: string | undefined | null,
+  sourceLabel: string,
+) => {
   if (!type) return null;
   const lower = type.toLowerCase();
   if (sourceLabel === "Baby Connect" && SIGN_EVENT_TYPES.includes(lower)) {
@@ -86,6 +111,7 @@ const babyDisplayMap: Record<string, string> = {
   medicine: "Medicine",
   temperature: "Temperature",
   bath: "Bath",
+  message: "Message",
 };
 
 const getEventTitle = (type: string, sourceLabel: string) => {
@@ -143,6 +169,9 @@ const getEntrySplits = (event: NormalisedEvent) => {
   return splits;
 };
 
+const applyDegreeSymbol = (text: string) =>
+  text.replace(/(\d+(?:\.\d+)?)\s*C\b/gi, "$1\u00B0C");
+
 const buildPairs = (
   famlyEvents: NormalisedEvent[],
   babyEvents: NormalisedEvent[],
@@ -173,11 +202,12 @@ const buildPairs = (
     splits.forEach((entry, idx) => {
       const clone: NormalisedEvent = {
         ...ev,
-        id: ev.id * 100 + idx,
         summary: entry.join(" - ") || ev.summary || ev.raw_text || "",
         raw_data: {
-          ...ev.raw_data,
+          ...(ev.raw_data || {}),
           detail_lines: entry,
+          source_event_id: ev.raw_data?.source_event_id ?? ev.id,
+          split_index: idx,
         },
       };
       addEvent(clone, makeKey(clone), "famly");
@@ -192,16 +222,48 @@ const formatClock = (date: Date) =>
   date.toLocaleTimeString(undefined, {
     hour: "2-digit",
     minute: "2-digit",
+    hour12: false,
   });
 
-const stripTimePrefix = (text: string): { remaining: string | null; range: string | null } => {
+const to24Hour = (token: string) => {
+  const trimmed = token.trim();
+  const match = trimmed.match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/i);
+  if (!match) return trimmed;
+  let hour = parseInt(match[1], 10);
+  const minute = match[2] ?? "00";
+  const meridiem = match[3]?.toLowerCase();
+  if (meridiem === "pm" && hour < 12) hour += 12;
+  if (meridiem === "am" && hour === 12) hour = 0;
+  return `${hour.toString().padStart(2, "0")}:${minute}`;
+};
+
+const formatRange24 = (range: string) => {
+  const parts = range
+    .split(/(?:-|to)/i)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (parts.length === 2) {
+    return `${to24Hour(parts[0])} - ${to24Hour(parts[1])}`;
+  }
+  if (parts.length === 1) {
+    return to24Hour(parts[0]);
+  }
+  return range.trim();
+};
+
+const stripTimePrefix = (
+  text: string,
+): { remaining: string | null; range: string | null } => {
   const trimmed = text.trim();
-  const match = trimmed.match(/^(\d{1,2}:\d{2})(\s*-\s*(\d{1,2}:\d{2}))?/);
+  const match = trimmed.match(
+    /^(\d{1,2}:\d{2}(?:\s*[AaPp][Mm])?)(?:\s*(?:-|to)\s*(\d{1,2}:\d{2}(?:\s*[AaPp][Mm])?))?/i,
+  );
   if (!match) {
     return { remaining: trimmed || null, range: null };
   }
-  const range = match[0];
-  const remainder = trimmed.slice(range.length).replace(/^[:\s-]+/, "");
+  const [, startPart, endPart] = match;
+  const range = endPart ? `${startPart} - ${endPart}` : startPart;
+  const remainder = trimmed.slice(match[0].length).replace(/^[:\s-]+/, "");
   return { remaining: remainder || null, range };
 };
 
@@ -209,8 +271,12 @@ const EventTile: React.FC<{ event?: NormalisedEvent; label: string }> = ({ event
   if (!event) {
     return <div className="event-card event-card--placeholder">No entry</div>;
   }
-  const icon = getIcon(event.event_type, label);
-  const displayTitle = getEventTitle(event.event_type, label);
+  const effectiveType =
+    label === "Famly"
+      ? inferFamlyEventType(event) || event.event_type
+      : event.event_type;
+  const icon = getIcon(effectiveType, label);
+  const displayTitle = getEventTitle(effectiveType, label);
   const detailLines = Array.isArray(event.raw_data?.detail_lines)
     ? [...event.raw_data!.detail_lines!]
     : [];
@@ -220,41 +286,53 @@ const EventTile: React.FC<{ event?: NormalisedEvent; label: string }> = ({ event
   detailLines.forEach((line) => {
     if (!line) return;
     const { remaining, range } = stripTimePrefix(line);
-    if (range && range.includes("-")) {
-      displayTime = range;
+    if (range) {
+      displayTime = formatRange24(range);
     }
     if (remaining) {
       cleanedEntries.push(remaining);
     }
   });
 
-const isSignEvent = SIGN_EVENT_TYPES.includes((event.event_type || "").toLowerCase());
+  const isSignEvent = SIGN_EVENT_TYPES.includes(
+    (effectiveType || "").toLowerCase(),
+  );
 
   const entries =
     cleanedEntries.length > 0
       ? cleanedEntries.map((line, idx) => ({
           key: `${event.id}-${idx}`,
-          text: line,
+          text: applyDegreeSymbol(line),
         }))
-      : isSignEvent
-      ? []
       : [
           {
             key: `${event.id}-summary`,
-            text: event.summary || event.raw_text || "",
+            text: applyDegreeSymbol(
+              isSignEvent
+                ? event.raw_data?.original_title ||
+                    event.summary ||
+                    event.raw_text ||
+                    ""
+                : event.summary || event.raw_text || "",
+            ),
           },
         ];
+
+  const noteText = event.raw_data?.note?.trim() || null;
+  const normalizeValue = (value: string | null) =>
+    value ? value.replace(/\s+/g, " ").trim().toLowerCase() : null;
+  const noteMatchesEntry =
+    noteText &&
+    entries.some((entry) => normalizeValue(entry.text) === normalizeValue(applyDegreeSymbol(noteText)));
+  const noteToShow = noteMatchesEntry ? null : noteText ? applyDegreeSymbol(noteText) : null;
 
   return (
     <div className="event-card">
       <div className="event-card__meta">
-        <div>
-          <p className="event-card__label">{label}</p>
-          <p className="event-card__title-line">
-            <span className="event-card__title">{displayTitle}</span>
-            <span className="event-card__time">{displayTime}</span>
-          </p>
-        </div>
+        <p className="event-card__title-line">
+          <span className="event-card__title">{displayTitle}</span>
+          <span className="event-card__time">{displayTime}</span>
+        </p>
         {icon && <img src={icon} className="event-card__icon" alt="" />}
       </div>
       <ul className="event-card__list">
@@ -264,12 +342,22 @@ const isSignEvent = SIGN_EVENT_TYPES.includes((event.event_type || "").toLowerCa
           </li>
         ))}
       </ul>
-      {event.raw_data?.note && <p className="event-card__note">{event.raw_data.note}</p>}
+      {noteToShow && <p className="event-card__note">{noteToShow}</p>}
     </div>
   );
 };
 
-export const EventComparison: React.FC<Props> = ({ famlyEvents, babyEvents, dateFormat }) => {
+export const EventComparison: React.FC<Props> = ({
+  famlyEvents,
+  babyEvents,
+  dateFormat,
+  onSyncEvent,
+  syncingEventId = null,
+  isBulkSyncing = false,
+  showMissingOnly = false,
+  onToggleMissing,
+  controlsSlot,
+}) => {
   const rows = useMemo(() => buildPairs(famlyEvents, babyEvents), [famlyEvents, babyEvents]);
 
   const stats = useMemo(() => {
@@ -280,7 +368,9 @@ export const EventComparison: React.FC<Props> = ({ famlyEvents, babyEvents, date
     return { famlyTotal, babyTotal, missing, matched };
   }, [famlyEvents, babyEvents, rows]);
 
-  const grouped = rows.reduce<Record<string, PairedRow[]>>((acc, row) => {
+  const filteredRows = showMissingOnly ? rows.filter((row) => row.famly && !row.baby) : rows;
+
+  const grouped = filteredRows.reduce<Record<string, PairedRow[]>>((acc, row) => {
     acc[row.dayIso] = acc[row.dayIso] || [];
     acc[row.dayIso].push(row);
     return acc;
@@ -312,6 +402,10 @@ export const EventComparison: React.FC<Props> = ({ famlyEvents, babyEvents, date
           </p>
         </div>
       </div>
+      {controlsSlot && <div className="extra-controls">{controlsSlot}</div>}
+      {showMissingOnly && filteredRows.length === 0 && (
+        <p className="no-missing">No missing entries</p>
+      )}
       {orderedGroups.map(([dayIso, entries]) => {
         const display = formatDayDisplay(
           dayIso,
@@ -320,10 +414,24 @@ export const EventComparison: React.FC<Props> = ({ famlyEvents, babyEvents, date
         );
         return (
           <section key={dayIso} className="day-section">
-            <h4 className="day-title">{display}</h4>
+            <div className="day-columns-header">
+              <span className="day-columns-header__label">Famly</span>
+              <span className="day-columns-header__day">{display}</span>
+              <span className="day-columns-header__label day-columns-header__label--right">
+                Baby Connect
+              </span>
+            </div>
             {entries.map((row) => {
               const isMatched = !!row.famly && !!row.baby;
-              const showArrow = !!row.famly && !row.baby;
+              const famlyEventId =
+                row.famly?.raw_data?.source_event_id ?? row.famly?.id;
+              const showArrow = !!famlyEventId && !!row.famly && !row.baby && !!onSyncEvent;
+              const isSyncingThis =
+                !!famlyEventId && syncingEventId === famlyEventId;
+              const arrowDisabled =
+                !showArrow ||
+                isBulkSyncing ||
+                (syncingEventId !== null && !isSyncingThis);
               return (
                 <div
                   key={row.key}
@@ -333,21 +441,29 @@ export const EventComparison: React.FC<Props> = ({ famlyEvents, babyEvents, date
                   <button
                     type="button"
                     className={`arrow-pill${isMatched ? " arrow-pill--matched" : ""}`}
-                    disabled={!showArrow}
+                    disabled={arrowDisabled}
                     onClick={() => {
-                      if (showArrow) {
-                        console.log("Trigger BabyConnect push for", row.famly?.id);
+                      if (showArrow && famlyEventId) {
+                        onSyncEvent?.(famlyEventId);
                       }
                     }}
                     aria-label={
-                      showArrow
+                      isSyncingThis
+                        ? "Syncing entry"
+                        : showArrow
                         ? "Create this Famly entry in Baby Connect"
                         : isMatched
                         ? "Entry already synced"
                         : "No action"
                     }
                   >
-                    {showArrow ? "→" : isMatched ? "✓" : ""}
+                    {isSyncingThis
+                      ? "…"
+                      : showArrow
+                      ? "→"
+                      : isMatched
+                      ? "✓"
+                      : ""}
                   </button>
                   <EventTile event={row.baby} label="Baby Connect" />
                 </div>

@@ -177,7 +177,7 @@ export const EventsColumn: React.FC<Props> = ({ title, events }) => {
 
   const renderSleep = (sleepEvents: NormalisedEvent[]) => {
     if (!sleepEvents.length) return null;
-    const stripPrefix = (summary: string | undefined) => {
+    const stripPrefix = (summary: string | undefined | null) => {
       if (!summary) return "";
       return summary.replace(/^.*Sleep:\s*/, "");
     };
@@ -188,8 +188,10 @@ export const EventsColumn: React.FC<Props> = ({ title, events }) => {
           {sleepEvents.map((ev) => (
             <li key={ev.id}>
               {ev.raw_data?.author
-                ? `${ev.raw_data.author} - ${ev.raw_data?.note || stripPrefix(ev.summary || ev.raw_text)}`
-                : stripPrefix(ev.summary || ev.raw_text)}
+                ? `${ev.raw_data.author} - ${
+                    ev.raw_data?.note || stripPrefix(ev.summary ?? ev.raw_text ?? undefined)
+                  }`
+                : stripPrefix(ev.summary ?? ev.raw_text ?? undefined)}
             </li>
           ))}
         </ul>

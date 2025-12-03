@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { ConnectionStatus, ServiceName } from "../types";
+import { ConnectionStatus, ServiceName, SyncPreferences } from "../types";
 import { ConnectionCard } from "./ConnectionCard";
 import {
   fetchEventMapping,
   fetchFamlyEventTypes,
+  fetchSyncPreferences,
   saveEventMapping,
+  saveSyncPreferences,
 } from "../api";
 
 type DateFormat = "weekday-mon-dd" | "weekday-dd-mon";
@@ -17,6 +19,8 @@ interface Props {
   onCredentialsSaved: (service: ServiceName) => void;
   dateFormat: DateFormat;
   onChangeDateFormat: (format: DateFormat) => void;
+  syncPreferences: SyncPreferences;
+  onSyncPreferencesSaved: (prefs: SyncPreferences) => Promise<void> | void;
 }
 
 const canonicalOptions = [
@@ -41,35 +45,55 @@ export const SettingsDrawer: React.FC<Props> = ({
   onCredentialsSaved,
   dateFormat,
   onChangeDateFormat,
+  syncPreferences,
+  onSyncPreferencesSaved,
 }) => {
   const [eventMap, setEventMap] = useState<Array<{ raw: string; target: string }>>([]);
   const [famlyTypes, setFamlyTypes] = useState<string[]>([]);
   const [isMappingLoading, setIsMappingLoading] = useState(false);
   const [isMappingSaving, setIsMappingSaving] = useState(false);
   const [mappingError, setMappingError] = useState<string | null>(null);
+  const [syncPrefs, setSyncPrefs] = useState<SyncPreferences>(syncPreferences);
+  const [isSyncPrefsLoading, setIsSyncPrefsLoading] = useState(false);
+  const [isSyncPrefsSaving, setIsSyncPrefsSaving] = useState(false);
+  const [syncPrefsError, setSyncPrefsError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
     (async () => {
       setIsMappingLoading(true);
       setMappingError(null);
+      setIsSyncPrefsLoading(true);
+      setSyncPrefsError(null);
       try {
-        const [mapping, types] = await Promise.all([
+        const [mapping, types, prefs] = await Promise.all([
           fetchEventMapping(),
           fetchFamlyEventTypes(),
+          fetchSyncPreferences(),
         ]);
         const rows = Object.entries(mapping).map(([raw, target]) => ({ raw, target }));
         setEventMap(rows.length ? rows : [{ raw: "", target: "solid" }]);
         setFamlyTypes(types);
+        setSyncPrefs(prefs);
+        onSyncPreferencesSaved(prefs);
       } catch (err) {
         setMappingError(err instanceof Error ? err.message : "Failed to load mapping");
         setEventMap([{ raw: "", target: "solid" }]);
         setFamlyTypes([]);
+        setSyncPrefs(syncPreferences);
+        setSyncPrefsError(err instanceof Error ? err.message : "Failed to load sync preferences");
       } finally {
         setIsMappingLoading(false);
+        setIsSyncPrefsLoading(false);
       }
     })();
   }, [open]);
+
+  useEffect(() => {
+    if (open) {
+      setSyncPrefs(syncPreferences);
+    }
+  }, [syncPreferences, open]);
 
   const availableRawOptions = useMemo(() => {
     return (currentRaw: string) => {
@@ -123,6 +147,33 @@ export const SettingsDrawer: React.FC<Props> = ({
     }
   };
 
+  const toggleSyncType = (value: string) => {
+    setSyncPrefs((prev) => {
+      const set = new Set(prev.include_types.map((item) => item.toLowerCase()));
+      if (set.has(value.toLowerCase())) {
+        const filtered = prev.include_types.filter(
+          (item) => item.toLowerCase() !== value.toLowerCase(),
+        );
+        return { include_types: filtered };
+      }
+      return { include_types: [...prev.include_types, value.toLowerCase()] };
+    });
+  };
+
+  const handleSaveSyncPrefs = async () => {
+    setIsSyncPrefsSaving(true);
+    setSyncPrefsError(null);
+    try {
+      const updated = await saveSyncPreferences(syncPrefs);
+      setSyncPrefs(updated);
+      await onSyncPreferencesSaved(updated);
+    } catch (err) {
+      setSyncPrefsError(err instanceof Error ? err.message : "Failed to save sync preferences");
+    } finally {
+      setIsSyncPrefsSaving(false);
+    }
+  };
+
   if (!open) return null;
 
   return (
@@ -145,6 +196,47 @@ export const SettingsDrawer: React.FC<Props> = ({
             <option value="weekday-mon-dd">Mon Dec 01</option>
             <option value="weekday-dd-mon">Mon 01 Dec</option>
           </select>
+        </div>
+        <div className="credential-card">
+          <h3>Sync-all filters</h3>
+          <p style={{ marginTop: 0, color: "rgba(248,250,252,0.75)" }}>
+            Select which event types are included when running Sync All.
+          </p>
+          {isSyncPrefsLoading ? (
+            <p className="loading-text">Loading preferences…</p>
+          ) : (
+            <>
+              <div className="sync-pref-grid">
+                {canonicalOptions.map((option) => {
+                  const selected = syncPrefs.include_types
+                    .map((item) => item.toLowerCase())
+                    .includes(option.value);
+                  return (
+                    <label
+                      key={option.value}
+                      className={`sync-pref-pill${selected ? " sync-pref-pill--selected" : ""}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selected}
+                        onChange={() => toggleSyncType(option.value)}
+                      />
+                      <span>{option.label}</span>
+                    </label>
+                  );
+                })}
+              </div>
+              <button
+                className="credential-card__btn credential-card__btn--primary"
+                style={{ alignSelf: "flex-start" }}
+                onClick={handleSaveSyncPrefs}
+                disabled={isSyncPrefsSaving}
+              >
+                {isSyncPrefsSaving ? "Saving…" : "Save sync filters"}
+              </button>
+              {syncPrefsError && <p className="error-text">{syncPrefsError}</p>}
+            </>
+          )}
         </div>
         <div className="credential-card">
           <h3>Famly event mappings</h3>

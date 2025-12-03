@@ -3,7 +3,7 @@ from typing import List
 from fastapi import APIRouter, Query
 from pydantic import BaseModel
 
-from ..core.sync_service import get_events
+from ..core.sync_service import get_events, get_missing_famly_event_ids
 
 router = APIRouter(tags=["events"])
 
@@ -13,6 +13,7 @@ class EventOut(BaseModel):
     child_name: str
     event_type: str
     start_time_utc: str
+    end_time_utc: str | None = None
     matched: bool = False
     summary: str | None = None
     raw_text: str | None = None
@@ -35,9 +36,15 @@ def list_events(source: str = Query(..., regex="^(famly|baby_connect)$")):
             child_name=e.child_name,
             event_type=e.event_type,
             start_time_utc=e.start_time_utc.isoformat(),
+            end_time_utc=e.end_time_utc.isoformat() if e.end_time_utc else None,
             matched=False,  # placeholder until matching is wired
             summary=e.details_json.get("raw_text") if isinstance(e.details_json, dict) else None,
             raw_text=e.details_json.get("raw_text") if isinstance(e.details_json, dict) else None,
             raw_data=e.details_json.get("raw_data") if isinstance(e.details_json, dict) else None,
         ))
     return output
+
+@router.get("/events/missing")
+def list_missing_events():
+    missing_ids = get_missing_famly_event_ids()
+    return {"missing_event_ids": missing_ids, "count": len(missing_ids)}

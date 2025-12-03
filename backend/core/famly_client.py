@@ -58,7 +58,7 @@ class FamlyClient:
         In development, set HEADLESS = False to watch the flow and tweak selectors.
         """
         events: List[RawFamlyEvent] = []
-        entry_day_limit = max(0, days_back)
+        entry_day_limit = max(1, days_back + 1)
         reference_date = datetime.now().date()
 
         with sync_playwright() as p:
@@ -132,6 +132,15 @@ class FamlyClient:
                 if not event_blocks:
                     continue
 
+                logger.info(
+                    "Famly scrape: processing %s with %d events",
+                    day_label or "Unknown day",
+                    len(event_blocks),
+                )
+                days_included += 1
+                if entry_day_limit and days_included > entry_day_limit:
+                    logger.info("Famly scrape: reached entry day limit (%d), stopping", entry_day_limit)
+                    break
                 for ev_block in event_blocks:
                     content = ev_block.query_selector(EVENT_CONTENT_SELECTOR)
                     if not content:
@@ -162,6 +171,7 @@ class FamlyClient:
                         )
 
                         event_dt = self._build_event_datetime(day_date, time_str)
+                        event_end_dt = self._build_end_datetime(day_date, time_str, event_dt)
 
                         preferred_name = child_full_name or child_first_name or "Unknown"
                         events.append(
@@ -172,16 +182,19 @@ class FamlyClient:
                                 raw_text=f"{day_label} - {event_title}: {entry_text or event_title}",
                                 raw_data={
                                     "day_label": day_label,
-                                "detail_lines": entry,
-                                "child_full_name": child_full_name,
-                                "day_date_iso": day_date.isoformat() if day_date else None,
-                                "event_datetime_iso": event_dt.isoformat() if event_dt else None,
-                                "original_title": raw_title,
-                                "entry_index": idx,
-                            },
+                                    "detail_lines": entry,
+                                    "child_full_name": child_full_name,
+                                    "day_date_iso": day_date.isoformat() if day_date else None,
+                                    "event_datetime_iso": event_dt.isoformat() if event_dt else None,
+                                    "end_event_datetime_iso": event_end_dt.isoformat() if event_end_dt else None,
+                                    "original_title": raw_title,
+                                    "entry_index": idx,
+                                },
                                 event_datetime_iso=event_dt.isoformat() if event_dt else None,
                             )
                         )
+                if entry_day_limit and days_included >= entry_day_limit:
+                    break
             browser.close()
             logger.info("Famly scrape: finished with %d events", len(events))
 
@@ -328,3 +341,21 @@ class FamlyClient:
             hour = min(int(match.group(1)), 23)
             minute = min(int(match.group(2)), 59)
         return datetime.combine(day, time(hour=hour, minute=minute))
+
+    def _build_end_datetime(
+        self,
+        day: Optional[date],
+        time_str: str,
+        start_dt: Optional[datetime],
+    ) -> Optional[datetime]:
+        if not day:
+            return None
+        matches = re.findall(r"(\d{1,2}):(\d{2})", time_str or "")
+        if len(matches) < 2:
+            return None
+        hour = min(int(matches[1][0]), 23)
+        minute = min(int(matches[1][1]), 59)
+        end_dt = datetime.combine(day, time(hour=hour, minute=minute))
+        if start_dt and end_dt <= start_dt:
+            end_dt += timedelta(days=1)
+        return end_dt

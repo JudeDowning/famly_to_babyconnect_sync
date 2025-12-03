@@ -110,13 +110,22 @@ def normalise_famly_event(raw: RawFamlyEvent) -> Dict[str, Any]:
         start_time_utc=start_time_utc,
         details_snippet=details_snippet,
     )
+    end_time_utc = None
+    raw_data = raw.raw_data or {}
+    end_iso = raw_data.get("end_event_datetime_iso")
+    if end_iso:
+        try:
+            end_time_utc = datetime.fromisoformat(end_iso)
+        except ValueError:
+            logger.debug("normalise_famly_event: invalid end iso %s", end_iso)
+
     return {
         "source_system": "famly",
         "fingerprint": fingerprint,
         "child_name": raw.child_name,
         "event_type": raw.event_type,
         "start_time_utc": start_time_utc,
-        "end_time_utc": None,
+        "end_time_utc": end_time_utc,
         "details_json": {
             "raw_text": raw.raw_text,
             "raw_data": raw.raw_data,
@@ -136,13 +145,22 @@ def normalise_babyconnect_event(raw: RawBabyConnectEvent) -> Dict[str, Any]:
         start_time_utc=start_time_utc,
         details_snippet=details_snippet,
     )
+    end_time_utc = None
+    raw_data = raw.raw_data or {}
+    end_iso = raw_data.get("end_event_datetime_iso")
+    if end_iso:
+        try:
+            end_time_utc = datetime.fromisoformat(end_iso)
+        except ValueError:
+            logger.debug("normalise_babyconnect_event: invalid end iso %s", end_iso)
+
     return {
         "source_system": "baby_connect",
         "fingerprint": fingerprint,
         "child_name": raw.child_name,
         "event_type": raw.event_type,
         "start_time_utc": start_time_utc,
-        "end_time_utc": None,
+        "end_time_utc": end_time_utc,
         "details_json": {
             "raw_text": raw.raw_text,
             "raw_data": raw.raw_data,

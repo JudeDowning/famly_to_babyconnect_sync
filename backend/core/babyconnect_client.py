@@ -15,9 +15,9 @@ from __future__ import annotations
 from typing import Dict, Any, List
 import logging
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 
-from playwright.sync_api import sync_playwright, Page
+from playwright.sync_api import sync_playwright, Page, TimeoutError as PlaywrightTimeoutError
 
 from .config import BABYCONNECT_PROFILE_DIR, HEADLESS
 from .normalisation import RawBabyConnectEvent
@@ -52,8 +52,9 @@ class BabyConnectClient:
         self.email = email
         self.password = password
 
-    def login_and_scrape(self, days_back: int = 0) -> List[RawBabyConnectEvent]:
+    def login_and_scrape(self, days_back: int = 0, allowed_days: list[str] | None = None) -> List[RawBabyConnectEvent]:
         events: List[RawBabyConnectEvent] = []
+        allowed_set = {day for day in (allowed_days or []) if day}
 
         with sync_playwright() as p:
             browser = p.chromium.launch_persistent_context(
@@ -96,15 +97,23 @@ class BabyConnectClient:
                     break
                 seen_dates.add(day_iso)
 
-                daily_events = self._collect_events_for_day(
-                    status_list=status_list,
-                    child_name=child_name,
-                    day_label=day_label,
-                    day_iso=day_iso,
-                )
-                events.extend(daily_events)
-                logger.info("BabyConnect: collected %d events for %s", len(daily_events), day_label)
+                if allowed_set and day_iso not in allowed_set:
+                    logger.info("BabyConnect: skipping day %s (not requested)", day_iso)
+                else:
+                    daily_events = self._collect_events_for_day(
+                        status_list=status_list,
+                        child_name=child_name,
+                        day_label=day_label,
+                        day_iso=day_iso,
+                    )
+                    events.extend(daily_events)
+                    logger.info("BabyConnect: collected %d events for %s", len(daily_events), day_label)
+                    if allowed_set:
+                        allowed_set.discard(day_iso)
 
+                if allowed_set and not allowed_set:
+                    logger.info("BabyConnect: collected all requested days")
+                    break
                 if collected_days >= days_back:
                     break
 
@@ -117,6 +126,406 @@ class BabyConnectClient:
             logger.info("BabyConnect: scraped %d events across %d days", len(events), len(seen_dates))
 
         return events
+
+    def create_entries(self, entries: List[Dict[str, Any]]) -> None:
+        """
+        Create new entries inside Baby Connect based on the provided list.
+
+        Each entry should contain at minimum an "event_type" key. Optional keys such as
+        start_time_utc, end_time_utc, note, quantity, etc. will be used when filling the dialogs.
+        """
+        if not entries:
+            logger.info("BabyConnect: no entries to create")
+            return
+
+        logger.info("BabyConnect: creating %d entries", len(entries))
+
+        with sync_playwright() as p:
+            browser = p.chromium.launch_persistent_context(
+                user_data_dir=str(BABYCONNECT_PROFILE_DIR),
+                headless=HEADLESS,
+            )
+            page = browser.new_page()
+
+            logger.info("BabyConnect: opening home page for entry creation")
+            page.goto(BABYCONNECT_HOME_URL, wait_until="networkidle")
+
+            if "login" in page.url:
+                logger.info("BabyConnect: performing login before creating entries")
+                page.wait_for_selector(BC_EMAIL_SELECTOR)
+                page.fill(BC_EMAIL_SELECTOR, self.email)
+                page.fill(BC_PASSWORD_SELECTOR, self.password)
+                page.click(BC_LOGIN_BUTTON_SELECTOR)
+                page.wait_for_load_state("networkidle")
+                page.goto(BABYCONNECT_HOME_URL, wait_until="networkidle")
+
+            page.wait_for_selector("#new_entries_panel", timeout=10000)
+
+            for entry in entries:
+                event_type = (entry.get("event_type") or "").lower()
+                try:
+                    logger.info("BabyConnect: creating entry type=%s payload=%s", event_type, entry)
+                    if event_type in {"nappy", "diaper"}:
+                        self._create_diaper_entry(page, entry)
+                    elif event_type == "sleep":
+                        self._create_sleep_entry(page, entry)
+                    elif event_type in {"solid", "meal", "food"}:
+                        self._create_solid_entry(page, entry)
+                    elif event_type in {"message", "note"}:
+                        self._create_message_entry(page, entry)
+                    else:
+                        logger.warning("BabyConnect: unsupported entry type %s", event_type)
+                except Exception:
+                    logger.exception("BabyConnect: failed to create entry %s", entry)
+
+            browser.close()
+
+    def _open_entry_dialog(self, page: Page, callback_fragment: str) -> Page:
+        page.locator(f"#new_entries_panel a[href*='{callback_fragment}']").first.click()
+        dialog = page.locator(".ui-dialog").last
+        dialog.wait_for(state="visible")
+        return dialog
+
+    def _format_time_for_input(self, value: str | None) -> str:
+        if not value:
+            return ""
+        try:
+            cleaned = value.replace("Z", "+00:00")
+            dt = datetime.fromisoformat(cleaned)
+        except ValueError:
+            return value
+        return dt.strftime("%I:%M %p").lstrip("0")
+
+    def _format_date_for_input(self, entry: Dict[str, Any]) -> str:
+        candidate = entry.get("start_time_utc") or entry.get("start_time")
+        dt: datetime | None = None
+        if candidate:
+            cleaned = candidate.replace("Z", "+00:00")
+            try:
+                dt = datetime.fromisoformat(cleaned)
+            except ValueError:
+                dt = None
+        if not dt:
+            day_iso = (
+                entry.get("raw_data", {}).get("day_date_iso")
+                if entry.get("raw_data")
+                else None
+            )
+            if day_iso:
+                try:
+                    dt = datetime.combine(date.fromisoformat(day_iso), datetime.min.time())
+                except ValueError:
+                    dt = None
+        if not dt:
+            return ""
+        return dt.strftime("%m/%d/%Y")
+
+    def _fill_date_field(self, dialog: Page, entry: Dict[str, Any]) -> None:
+        formatted = self._format_date_for_input(entry)
+        if not formatted:
+            return
+        try:
+            target_date = datetime.strptime(formatted, "%m/%d/%Y").date()
+        except ValueError:
+            logger.warning("BabyConnect: invalid date format %s", formatted)
+            return
+
+        logger.info("BabyConnect: preparing to set date %s", target_date.isoformat())
+
+        today = datetime.now().date()
+        try:
+            date_link = dialog.locator("#dateinput")
+            if date_link.count():
+                date_link.click()
+                dialog.page.wait_for_selector("#ui-datepicker-div", state="visible", timeout=2000)
+                logger.info("BabyConnect: date picker opened")
+            else:
+                logger.warning("BabyConnect: date link not found in dialog")
+                return
+        except Exception:
+            logger.warning("BabyConnect: unable to open date picker", exc_info=True)
+            return
+
+        months = [
+            "january",
+            "february",
+            "march",
+            "april",
+            "may",
+            "june",
+            "july",
+            "august",
+            "september",
+            "october",
+            "november",
+            "december",
+        ]
+
+        def current_month_index() -> int:
+            element = dialog.page.locator("#ui-datepicker-div .ui-datepicker-title .ui-datepicker-month")
+            month_text = element.inner_text().strip().lower()
+            return months.index(month_text)
+
+        def current_year() -> int:
+            element = dialog.page.locator("#ui-datepicker-div .ui-datepicker-title .ui-datepicker-year")
+            return int(element.inner_text().strip())
+
+        target_month = target_date.month - 1
+        target_year = target_date.year
+
+        try:
+            for step in range(24):
+                year = current_year()
+                if year == target_year:
+                    break
+                button = "#ui-datepicker-div .ui-datepicker-prev" if year > target_year else "#ui-datepicker-div .ui-datepicker-next"
+                dialog.page.locator(button).click()
+                dialog.page.wait_for_timeout(200)
+                logger.info("BabyConnect: adjust year step=%s heading=%s", step, current_year())
+            else:
+                logger.warning("BabyConnect: unable to reach target year %s", target_year)
+                return
+
+            for step in range(12):
+                month_idx = current_month_index()
+                if month_idx == target_month:
+                    break
+                button = "#ui-datepicker-div .ui-datepicker-prev" if month_idx > target_month else "#ui-datepicker-div .ui-datepicker-next"
+                dialog.page.locator(button).click()
+                dialog.page.wait_for_timeout(200)
+                logger.info("BabyConnect: adjust month step=%s heading=%s", step, current_month_index())
+            else:
+                logger.warning("BabyConnect: unable to reach target month %s", target_month)
+                return
+
+            day_locator = dialog.page.locator(
+                f"#ui-datepicker-div td[data-year='{target_year}'][data-month='{target_month}'] a",
+                has_text=str(target_date.day),
+            )
+            day_locator.first.click()
+            dialog.page.wait_for_selector("#ui-datepicker-div", state="hidden", timeout=2000)
+            logger.info("BabyConnect: date picker closed and date selected")
+        except Exception:
+            logger.warning("BabyConnect: failed to select date", exc_info=True)
+
+    def _fill_time_fields(
+        self,
+        dialog: Page,
+        entry: Dict[str, Any],
+        use_start_for_end: bool = False,
+    ) -> None:
+        start = self._format_time_for_input(entry.get("start_time_utc") or entry.get("start_time"))
+
+        
+        if start:
+            dialog.locator("#timeinput").fill(start)
+        end = self._format_time_for_input(entry.get("end_time_utc") or entry.get("end_time"))
+        if use_start_for_end and not end:
+            end = start
+        if dialog.locator("#endtimeinput").count():
+            handle = dialog.locator("#endtimeinput")
+            handle.fill("")
+            if end:
+                handle.fill(end)
+
+    def _fill_sleep_end_from_detail(self, dialog: Page, entry: Dict[str, Any]) -> None:
+        if not dialog.locator("#endtimeinput").count():
+            return
+        if entry.get("end_time_utc") or entry.get("end_time"):
+            return
+        raw_data = entry.get("raw_data") or {}
+        detail_lines = raw_data.get("detail_lines") or []
+        pattern = re.compile(
+            r"(\d{1,2}:\d{2}\s*(?:am|pm)?)\s*(?:-|to)\s*(\d{1,2}:\d{2}\s*(?:am|pm)?)",
+            re.IGNORECASE,
+        )
+        candidate = None
+        for line in detail_lines:
+            match = pattern.search(line)
+            if match:
+                candidate = match.group(2)
+                break
+        if not candidate:
+            text = entry.get("summary") or entry.get("raw_text") or ""
+            match = pattern.search(text)
+            if match:
+                candidate = match.group(2)
+        base_end = entry.get("end_time_utc") or entry.get("end_time")
+        day_iso = raw_data.get("day_date_iso")
+        if not day_iso and (entry.get("start_time_utc") or entry.get("start_time")):
+            start = entry.get("start_time_utc") or entry.get("start_time")
+            if start and "T" in start:
+                day_iso = start.split("T")[0]
+
+        def combine_token(token: str) -> datetime | None:
+            if not day_iso:
+                return None
+            return self._combine_date_with_time(day_iso, token)
+
+        end_dt = None
+        if base_end:
+            try:
+                cleaned = base_end.replace("Z", "+00:00")
+                end_dt = datetime.fromisoformat(cleaned)
+            except ValueError:
+                end_dt = None
+
+        if not end_dt and candidate:
+            end_dt = combine_token(candidate)
+
+        if not end_dt:
+            return
+        formatted = end_dt.strftime("%I:%M %p").lstrip("0")
+        dialog.locator("#endtimeinput").fill(formatted)
+
+    def _ensure_note_visible(self, dialog: Page) -> None:
+        if dialog.locator("#notelnk").count() and dialog.locator("#notesub").count():
+            display = dialog.locator("#notesub").first.evaluate(
+                "(node) => window.getComputedStyle(node).display",
+            )
+            if display == "none":
+                dialog.locator("#notelnk").click()
+
+    def _append_sync_marker(self, text: str | None) -> str:
+        if text:
+            cleaned = text.rstrip()
+            spacer = "" if cleaned.endswith(" ") else " "
+            return f"{cleaned}{spacer}[Sync]"
+        return "[Sync]"
+
+    def _create_diaper_entry(self, page: Page, entry: Dict[str, Any]) -> None:
+        logger.info("BabyConnect: opening diaper dialog for entry %s", entry.get("id") or entry.get("summary"))
+        dialog = self._open_entry_dialog(page, "showDiaperDlg")
+        self._fill_date_field(dialog, entry)
+        self._fill_time_fields(dialog, entry)
+
+        diaper_type = (entry.get("diaper_type") or entry.get("subtype") or "wet").lower()
+        radio_map = {
+            "bm": "#diaper1",
+            "bm_wet": "#diaper2",
+            "wet": "#diaper3",
+            "dry": "#diaper4",
+        }
+        dialog.locator(radio_map.get(diaper_type, "#diaper3")).check()
+
+        quantity = entry.get("quantity")
+        if quantity is not None and dialog.locator("#qtycombo").count():
+            dialog.select_option("#qtycombo", str(quantity))
+
+        self._fill_sleep_end_from_detail(dialog, entry)
+
+        self._ensure_note_visible(dialog)
+        dialog.locator("#notetxt").fill("")
+        dialog.locator("#notetxt").type("[Sync]")
+
+        dialog.locator(".defaultDlgButtonSave").click()
+        try:
+            dialog.wait_for(state="hidden", timeout=10000)
+        except PlaywrightTimeoutError:
+            logger.warning("BabyConnect: diaper dialog did not hide after save, continuing")
+        dialog.wait_for(state="detached")
+        logger.info("BabyConnect: diaper entry saved")
+
+    def _create_sleep_entry(self, page: Page, entry: Dict[str, Any]) -> None:
+        logger.info("BabyConnect: opening sleep dialog for entry %s", entry.get("id") or entry.get("summary"))
+        dialog = self._open_entry_dialog(page, "showSleepDlg")
+        self._fill_date_field(dialog, entry)
+        self._fill_time_fields(dialog, entry)
+
+        napped_label = dialog.locator("label", has_text="napped")
+        slept_label = dialog.locator("label", has_text="slept")
+        target_label = napped_label if napped_label.count() else slept_label
+        if target_label.count():
+            target_for = target_label.get_attribute("for")
+            if target_for and dialog.locator(f"#{target_for}").count():
+                target = dialog.locator(f"#{target_for}")
+                target.scroll_into_view_if_needed()
+                target.check(force=True)
+
+        self._fill_sleep_end_from_detail(dialog, entry)
+
+        self._ensure_note_visible(dialog)
+        dialog.locator("#notetxt").fill("")
+        dialog.locator("#notetxt").type("[Sync]")
+
+        dialog.locator(".defaultDlgButtonSave").click()
+        try:
+            dialog.wait_for(state="hidden", timeout=8000)
+        except PlaywrightTimeoutError:
+            logger.warning("BabyConnect: sleep dialog did not hide after save, continuing")
+        try:
+            dialog.wait_for(state="detached", timeout=4000)
+        except PlaywrightTimeoutError:
+            logger.warning("BabyConnect: sleep dialog still attached, continuing anyway")
+        logger.info("BabyConnect: sleep entry saved")
+
+    def _create_solid_entry(self, page: Page, entry: Dict[str, Any]) -> None:
+        logger.info("BabyConnect: opening solid dialog for entry %s", entry.get("id") or entry.get("summary"))
+        dialog = self._open_entry_dialog(page, "showEatDlg")
+        self._fill_date_field(dialog, entry)
+        self._fill_time_fields(dialog, entry, use_start_for_end=True)
+
+        solid_type = str(entry.get("solid_type") or "201")
+        if solid_type.isdigit():
+            dialog.locator(f"#input{solid_type}").check()
+
+        quantity_label = entry.get("quantity_label") or entry.get("quantity")
+        if quantity_label:
+            dialog.select_option("#qtyDDown", str(quantity_label))
+
+        unit = entry.get("unit")
+        if unit:
+            dialog.select_option("#unitDDown", str(unit))
+
+        reaction = entry.get("reaction")
+        if reaction:
+            dialog.locator(f"#reaction-{reaction}").check()
+
+        note_source = (
+            entry.get("raw_data", {}).get("detail_lines")
+            if entry.get("raw_data")
+            else None
+        )
+        if isinstance(note_source, list) and len(note_source) > 1:
+            note = " - ".join(note_source[1:])
+        else:
+            note = (
+                entry.get("note")
+                or entry.get("summary")
+                or entry.get("raw_text")
+                or ""
+            )
+
+        self._ensure_note_visible(dialog)
+        dialog.locator("#notetxt").fill(self._append_sync_marker(note or None))
+
+        dialog.locator(".defaultDlgButtonSave").click()
+        try:
+            dialog.wait_for(state="hidden", timeout=8000)
+        except PlaywrightTimeoutError:
+            logger.warning("BabyConnect: solid dialog did not hide after save, continuing")
+        try:
+            dialog.wait_for(state="detached", timeout=4000)
+        except PlaywrightTimeoutError:
+            logger.warning("BabyConnect: solid dialog still attached, continuing anyway")
+        logger.info("BabyConnect: solid entry saved")
+
+    def _create_message_entry(self, page: Page, entry: Dict[str, Any]) -> None:
+        logger.info("BabyConnect: opening message dialog for entry %s", entry.get("id") or entry.get("summary"))
+        dialog = self._open_entry_dialog(page, "showMsgDlg")
+        self._fill_date_field(dialog, entry)
+        self._fill_time_fields(dialog, entry)
+
+        message = entry.get("note") or entry.get("summary") or entry.get("raw_text") or entry.get("message")
+        dialog.locator("#txt").fill(self._append_sync_marker(message))
+        dialog.locator(".defaultDlgButtonSave").click()
+        try:
+            dialog.wait_for(state="hidden", timeout=10000)
+        except PlaywrightTimeoutError:
+            logger.warning("BabyConnect: message dialog did not hide after save, continuing anyway")
+        dialog.wait_for(state="detached")
+        logger.info("BabyConnect: message entry saved")
+
 
     def _extract_time_and_author(self, node) -> tuple[str, str]:
         container = node.query_selector(BC_POSTED_BY_CONTAINER_SELECTOR)
@@ -153,6 +562,10 @@ class BabyConnectClient:
             return "temperature"
         if "bath_v2" in s:
             return "bath"
+        if "potty_v2" in s:
+            return "potty"
+        if "msg_v2" in s:
+            return "message"
 
         if "diaper" in t or "nappy" in t:
             return "nappy"
@@ -168,6 +581,8 @@ class BabyConnectClient:
             return "bottle"
         if "bath" in t:
             return "bath"
+        if "signed in" in t or "signed out" in t or "message" in t:
+            return "message"
 
         return "other"
 

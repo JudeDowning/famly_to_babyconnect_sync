@@ -7,12 +7,19 @@ from ..core.event_mapping import (
     get_known_famly_types,
     set_event_mapping as save_event_mapping,
 )
+from ..core.settings_store import (
+    get_sync_preferences,
+    set_sync_preferences,
+)
 from ..core.storage import get_session
 from ..core.models import Event
 
 
 class EventMappingPayload(BaseModel):
     mapping: dict[str, str]
+
+class SyncPreferencesPayload(BaseModel):
+    include_types: list[str]
 
 
 router = APIRouter(tags=["settings"])
@@ -52,3 +59,14 @@ def list_famly_event_types():
     known.update(label.strip() for label in load_event_mapping().keys() if label.strip())
     cleaned = sorted({item for item in known if item})
     return {"types": cleaned}
+
+
+@router.get("/settings/sync-preferences")
+def read_sync_preferences():
+    return get_sync_preferences()
+
+
+@router.put("/settings/sync-preferences")
+def update_sync_preferences(payload: SyncPreferencesPayload):
+    prefs = set_sync_preferences(payload.include_types)
+    return {"status": "ok", "preferences": prefs}

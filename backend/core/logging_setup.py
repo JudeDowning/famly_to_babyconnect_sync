@@ -26,4 +26,8 @@ def configure_logging() -> None:
     root_logger = logging.getLogger()
     root_logger.setLevel(LOG_LEVEL.upper())
     root_logger.addHandler(handler)
+
+    console = logging.StreamHandler()
+    console.setFormatter(formatter)
+    root_logger.addHandler(console)
     _handler_attached = True
