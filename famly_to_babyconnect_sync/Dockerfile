@@ -12,19 +12,22 @@ ENV DEBIAN_FRONTEND=noninteractive \
 WORKDIR /app
 
 # Install runtime dependencies and Playwright browsers
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
+RUN apk add --no-cache \
         python3 \
-        python3-pip \
-        python3-venv \
-        python3-setuptools \
-        python3-wheel \
-        build-essential \
+        py3-pip \
+        py3-setuptools \
+        py3-wheel \
+        py3-virtualenv \
+        build-base \
+        bash \
         wget \
         curl \
         ca-certificates \
-        fonts-liberation \
-    && rm -rf /var/lib/apt/lists/*
+        libstdc++ \
+        nss \
+        mesa-gles \
+        fontconfig \
+        ttf-dejavu
 
 COPY requirements.txt .
 RUN pip3 install --no-cache-dir -r requirements.txt \
