@@ -6,8 +6,8 @@ documentation: https://github.com/JudeDowning/famly_to_babyconnect_sync#readme
 url: https://github.com/JudeDowning/famly_to_babyconnect_sync
 arch:
   - amd64
-  - armv7
-  - aarch64
+build_from:
+  amd64: ghcr.io/home-assistant/amd64-base-debian:latest
 startup: application
 boot: auto
 init: false
