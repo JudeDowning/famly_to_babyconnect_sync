@@ -1,42 +1,16 @@
-ARG BUILD_FROM=ghcr.io/home-assistant/amd64-base-debian:latest
-FROM ${BUILD_FROM}
+FROM mcr.microsoft.com/playwright/python:v1.47.0-jammy
 
-ENV DEBIAN_FRONTEND=noninteractive \
-    PYTHONUNBUFFERED=1 \
+ENV PYTHONUNBUFFERED=1 \
     APP_HOST=0.0.0.0 \
     APP_PORT=8000 \
     HEADLESS=true \
     DB_PATH=/data/db.sqlite \
-    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
-    VIRTUAL_ENV=/opt/famly-sync-venv
-
-ENV PATH="${VIRTUAL_ENV}/bin:${PATH}"
+    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
 WORKDIR /app
 
-# Install runtime dependencies and Playwright browsers
-RUN apk add --no-cache \
-        python3 \
-        py3-pip \
-        py3-setuptools \
-        py3-wheel \
-        py3-virtualenv \
-        build-base \
-        bash \
-        wget \
-        curl \
-        ca-certificates \
-        libstdc++ \
-        nss \
-        mesa-gles \
-        fontconfig \
-        ttf-dejavu
-
 COPY requirements.txt .
-RUN python3 -m venv "${VIRTUAL_ENV}" \
-    && . "${VIRTUAL_ENV}/bin/activate" \
-    && pip install --upgrade pip \
-    && pip install --no-cache-dir -r requirements.txt \
+RUN pip install --no-cache-dir -r requirements.txt \
     && playwright install --with-deps chromium
 
 COPY backend ./backend
