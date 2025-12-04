@@ -62,6 +62,16 @@ export const SettingsDrawer: React.FC<Props> = ({
   const [debugError, setDebugError] = useState<string | null>(null);
   const [isDebugLoading, setIsDebugLoading] = useState(false);
 
+  const normaliseTarget = (value: string) => {
+    const lower = (value || "").toLowerCase();
+    const match =
+      canonicalOptions.find(
+        (option) =>
+          option.value === lower || option.label.toLowerCase() === lower,
+      )?.value || lower || "solid";
+    return match;
+  };
+
   useEffect(() => {
     if (!open) return;
     (async () => {
@@ -75,7 +85,10 @@ export const SettingsDrawer: React.FC<Props> = ({
           fetchFamlyEventTypes(),
           fetchSyncPreferences(),
         ]);
-        const rows = Object.entries(mapping).map(([raw, target]) => ({ raw, target }));
+        const rows = Object.entries(mapping).map(([raw, target]) => ({
+          raw,
+          target: normaliseTarget(target),
+        }));
         setEventMap(rows.length ? rows : [{ raw: "", target: "solid" }]);
         setFamlyTypes(types);
         setSyncPrefs(prefs);
@@ -124,6 +137,7 @@ export const SettingsDrawer: React.FC<Props> = ({
       rows.map((row, idx) => (idx === index ? { ...row, [field]: value } : row)),
     );
   };
+
 
   const handleLoadDebug = async () => {
     setIsDebugLoading(true);

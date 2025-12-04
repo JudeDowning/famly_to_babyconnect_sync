@@ -43,3 +43,5 @@
 - Rebuilt the frontend bundle with the debug view.
 ## 0.0.13
 - Baby Connect scraper now stores the `posted_by` person (parsed from the “by …” tag) alongside the time so we can reference who logged each event. Existing `raw_data.author` continues to hold the timestamp for compatibility.
+## 0.0.14
+- Mapping UI now normalizes stored targets so the dropdown reflects the actual configured type (instead of defaulting to Solid) and rebuilt the frontend bundle.
