@@ -23,6 +23,19 @@ from .famly_client import FamlyClient
 from .babyconnect_client import BabyConnectClient
 from .settings_store import get_sync_preferences, SYNC_INCLUDE_DEFAULT
 
+def test_service_credentials(service_name: str) -> None:
+    cred = get_credentials(service_name)
+    if not cred:
+        raise RuntimeError(f"No {service_name.replace('_', ' ').title()} credentials configured.")
+    if service_name == "famly":
+        client = FamlyClient(email=cred.email, password=cred.password_encrypted)
+        client.verify_login()
+    elif service_name == "baby_connect":
+        client = BabyConnectClient(email=cred.email, password=cred.password_encrypted)
+        client.verify_login()
+    else:
+        raise RuntimeError(f"Unsupported service '{service_name}'")
+
 def get_credentials(service_name: str) -> Credential | None:
     with get_session() as session:
         return (

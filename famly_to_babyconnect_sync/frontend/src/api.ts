@@ -48,6 +48,14 @@ export async function saveCredentials(
   return handleResponse(res);
 }
 
+export async function testCredentials(service: ServiceName): Promise<void> {
+  const res = await fetch(apiUrl(`/api/credentials/${service}/test`), { method: "POST" });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body?.detail || "Failed to test credentials");
+  }
+}
+
 export async function fetchEventMapping(): Promise<Record<string, string>> {
   const res = await fetch(apiUrl("/api/settings/event-mapping"));
   if (!res.ok) {

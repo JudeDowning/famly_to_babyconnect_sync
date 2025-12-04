@@ -203,6 +203,27 @@ class FamlyClient:
         limited.sort(key=lambda ev: ev.event_datetime_iso or "")
         return limited
 
+    def verify_login(self) -> None:
+        """
+        Lightweight login check used by the API test endpoint.
+        """
+        with sync_playwright() as p:
+            browser = p.chromium.launch_persistent_context(
+                user_data_dir=str(FAMLY_PROFILE_DIR),
+                headless=HEADLESS,
+            )
+            page = browser.new_page()
+            logger.info("Famly client: verifying login")
+            page.goto(FAMLY_LOGIN_URL, wait_until="networkidle")
+            if page.is_visible(EMAIL_SELECTOR):
+                page.fill(EMAIL_SELECTOR, self.email)
+                page.fill(PASSWORD_SELECTOR, self.password)
+                page.click(LOGIN_BUTTON_SELECTOR)
+                page.wait_for_load_state("networkidle")
+            page.wait_for_selector(CHILD_LINK_SELECTOR, timeout=10000)
+            browser.close()
+            logger.info("Famly client: login verification successful")
+
     def _extract_time_string(self, lines: list[str]) -> str:
         """
         Very simple heuristic:

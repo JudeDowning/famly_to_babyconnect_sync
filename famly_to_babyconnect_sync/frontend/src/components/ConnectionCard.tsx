@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { loadCredentials, saveCredentials } from "../api";
+import { loadCredentials, saveCredentials, testCredentials } from "../api";
 import { ConnectionStatus, ServiceName } from "../types";
 
 interface Props {
@@ -18,7 +18,9 @@ export const ConnectionCard: React.FC<Props> = ({
   const [password, setPassword] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isTesting, setIsTesting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [testMessage, setTestMessage] = useState<string | null>(null);
 
   useEffect(() => {
     setEmail(status.email ?? "");
@@ -61,10 +63,27 @@ export const ConnectionCard: React.FC<Props> = ({
       await saveCredentials(status.service, email, password);
       onSaved?.(status.service);
       setPassword("");
+      setTestMessage("Credentials saved.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save credentials");
+      setTestMessage(null);
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleTest = async () => {
+    setIsTesting(true);
+    setError(null);
+    setTestMessage(null);
+    try {
+      await testCredentials(status.service);
+      setTestMessage("Connection successful.");
+      onTestConnection(status.service);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to test credentials");
+    } finally {
+      setIsTesting(false);
     }
   };
 
@@ -102,6 +121,7 @@ export const ConnectionCard: React.FC<Props> = ({
         />
       </div>
       {error && <p className="error-text">{error}</p>}
+      {testMessage && !error && <p className="loading-text">{testMessage}</p>}
       {isLoading && <p className="loading-text">Loading…</p>}
       <div className="credential-card__actions">
         <button
@@ -111,7 +131,11 @@ export const ConnectionCard: React.FC<Props> = ({
         >
           {isSaving ? "Saving..." : "Save"}
         </button>
-        <button className="credential-card__btn" onClick={() => onTestConnection(status.service)}>
+        <button
+          className="credential-card__btn"
+          onClick={handleTest}
+          disabled={isTesting}
+        >
           Test
         </button>
       </div>

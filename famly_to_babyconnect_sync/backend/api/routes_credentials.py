@@ -1,10 +1,13 @@
+import logging
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from ..core.storage import get_session
 from ..core.models import Credential
+from ..core.sync_service import test_service_credentials
 
 router = APIRouter(tags=["credentials"])
+logger = logging.getLogger(__name__)
 
 
 class CredentialIn(BaseModel):
@@ -32,6 +35,7 @@ def set_credentials(service: str, data: CredentialIn):
     """
     service = _validate_service(service)
 
+    logger.info("API: storing credentials for %s", service)
     with get_session() as session:
         existing = (
             session.query(Credential)
@@ -72,3 +76,18 @@ def get_credentials(service: str):
         service_name=service,
         email=cred.email if cred else None,
     )
+
+
+@router.post("/credentials/{service}/test")
+def test_credentials(service: str):
+    service = _validate_service(service)
+    logger.info("API: testing credentials for %s", service)
+    try:
+        test_service_credentials(service)
+    except RuntimeError as exc:
+        logger.warning("API: test credentials runtime error: %s", exc)
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        logger.exception("API: unexpected failure testing credentials")
+        raise HTTPException(status_code=500, detail="Failed to test credentials")
+    return {"status": "ok"}

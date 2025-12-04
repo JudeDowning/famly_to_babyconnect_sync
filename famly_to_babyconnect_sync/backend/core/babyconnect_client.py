@@ -127,6 +127,29 @@ class BabyConnectClient:
 
         return events
 
+    def verify_login(self) -> None:
+        """
+        Lightweight login check used by the API test endpoint.
+        """
+        with sync_playwright() as p:
+            browser = p.chromium.launch_persistent_context(
+                user_data_dir=str(BABYCONNECT_PROFILE_DIR),
+                headless=HEADLESS,
+            )
+            page = browser.new_page()
+            logger.info("BabyConnect: verifying login")
+            page.goto(BABYCONNECT_HOME_URL, wait_until="networkidle")
+            if "login" in page.url:
+                page.wait_for_selector(BC_EMAIL_SELECTOR)
+                page.fill(BC_EMAIL_SELECTOR, self.email)
+                page.fill(BC_PASSWORD_SELECTOR, self.password)
+                page.click(BC_LOGIN_BUTTON_SELECTOR)
+                page.wait_for_load_state("networkidle")
+                page.goto(BABYCONNECT_HOME_URL, wait_until="networkidle")
+            page.wait_for_selector(DATE_DISPLAY_SELECTOR, timeout=10000)
+            browser.close()
+            logger.info("BabyConnect: login verification successful")
+
     def create_entries(self, entries: List[Dict[str, Any]]) -> None:
         """
         Create new entries inside Baby Connect based on the provided list.

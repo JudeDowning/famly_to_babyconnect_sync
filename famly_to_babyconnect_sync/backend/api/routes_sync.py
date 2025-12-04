@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Query
+import logging
+from fastapi import APIRouter, Query, HTTPException
 from pydantic import BaseModel
 
 from ..core.sync_service import (
@@ -10,6 +11,7 @@ from ..core.sync_service import (
 )
 
 router = APIRouter(tags=["sync"])
+logger = logging.getLogger(__name__)
 
 class CreateEntriesPayload(BaseModel):
     event_ids: list[int]
@@ -21,7 +23,12 @@ def scrape_famly(days_back: int = Query(0, ge=0, le=7, description="Number of pr
 
     Returns a simple summary (e.g. count of events).
     """
-    events = scrape_famly_and_store(days_back=days_back)
+    logger.info("API: scrape Famly invoked days_back=%s", days_back)
+    try:
+        events = scrape_famly_and_store(days_back=days_back)
+    except Exception as exc:
+        logger.exception("API: Famly scrape failed")
+        raise HTTPException(status_code=500, detail=str(exc))
     return {
         "status": "ok",
         "scraped_count": len(events),
@@ -30,7 +37,12 @@ def scrape_famly(days_back: int = Query(0, ge=0, le=7, description="Number of pr
 
 @router.post("/scrape/baby_connect")
 def scrape_baby_connect(days_back: int = Query(0, ge=0, le=14, description="Number of previous days to include")):
-    events = scrape_babyconnect_and_store(days_back=days_back)
+    logger.info("API: scrape Baby Connect invoked days_back=%s", days_back)
+    try:
+        events = scrape_babyconnect_and_store(days_back=days_back)
+    except Exception as exc:
+        logger.exception("API: Baby Connect scrape failed")
+        raise HTTPException(status_code=500, detail=str(exc))
     return {
         "status": "ok",
         "scraped_count": len(events),
@@ -49,18 +61,31 @@ def sync():
 
 @router.post("/sync/baby_connect/entries")
 def create_babyconnect_entries(payload: CreateEntriesPayload):
-    return create_entries_service(payload.event_ids)
+    logger.info("API: creating %d baby connect entries", len(payload.event_ids))
+    try:
+        return create_entries_service(payload.event_ids)
+    except Exception as exc:
+        logger.exception("API: failed to create baby connect entries")
+        raise HTTPException(status_code=500, detail=str(exc))
 
 @router.post("/sync/missing")
 def sync_missing_entries():
     """
     Compute missing Famly events and create them in Baby Connect.
     """
-    missing_ids = get_missing_famly_event_ids()
+    try:
+        missing_ids = get_missing_famly_event_ids()
+    except Exception as exc:
+        logger.exception("API: failed to compute missing events")
+        raise HTTPException(status_code=500, detail=str(exc))
     if not missing_ids:
         return {"status": "ok", "created": 0, "missing_event_ids": []}
-    result = create_entries_service(missing_ids)
-    response = dict(result)
-    response.setdefault("status", "ok")
-    response["missing_event_ids"] = missing_ids
-    return response
+    try:
+        result = create_entries_service(missing_ids)
+        response = dict(result)
+        response.setdefault("status", "ok")
+        response["missing_event_ids"] = missing_ids
+        return response
+    except Exception as exc:
+        logger.exception("API: failed to sync missing entries")
+        raise HTTPException(status_code=500, detail=str(exc))
