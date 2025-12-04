@@ -158,3 +158,12 @@ export async function saveSyncPreferences(
   }
   return prefs;
 }
+
+export async function fetchDebugEvents(source: ServiceName): Promise<any> {
+  const res = await fetch(apiUrl(`/api/debug/events?source=${source}`));
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body?.detail || "Failed to load debug events");
+  }
+  return res.json();
+}

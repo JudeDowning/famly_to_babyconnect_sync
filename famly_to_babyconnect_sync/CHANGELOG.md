@@ -38,3 +38,6 @@
 
 ## 0.0.2
 - Improved Home Assistant compatibility: ingress-friendly frontend, persistent data paths, and Playwright-backed container image.
+## 0.0.12
+- Added `/api/debug/events` endpoint plus a “Scraped data (debug)” section in the settings drawer so you can inspect the raw Famly/Baby Connect rows directly from the UI.
+- Rebuilt the frontend bundle with the debug view.

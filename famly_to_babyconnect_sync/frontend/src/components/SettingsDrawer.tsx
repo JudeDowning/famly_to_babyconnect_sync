@@ -7,6 +7,7 @@ import {
   fetchSyncPreferences,
   saveEventMapping,
   saveSyncPreferences,
+  fetchDebugEvents,
 } from "../api";
 
 type DateFormat = "weekday-mon-dd" | "weekday-dd-mon";
@@ -57,6 +58,9 @@ export const SettingsDrawer: React.FC<Props> = ({
   const [isSyncPrefsLoading, setIsSyncPrefsLoading] = useState(false);
   const [isSyncPrefsSaving, setIsSyncPrefsSaving] = useState(false);
   const [syncPrefsError, setSyncPrefsError] = useState<string | null>(null);
+  const [debugData, setDebugData] = useState<{ famly?: any; baby_connect?: any }>({});
+  const [debugError, setDebugError] = useState<string | null>(null);
+  const [isDebugLoading, setIsDebugLoading] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -119,6 +123,22 @@ export const SettingsDrawer: React.FC<Props> = ({
     setEventMap((rows) =>
       rows.map((row, idx) => (idx === index ? { ...row, [field]: value } : row)),
     );
+  };
+
+  const handleLoadDebug = async () => {
+    setIsDebugLoading(true);
+    setDebugError(null);
+    try {
+      const [famly, bc] = await Promise.all([
+        fetchDebugEvents("famly"),
+        fetchDebugEvents("baby_connect"),
+      ]);
+      setDebugData({ famly, baby_connect: bc });
+    } catch (err) {
+      setDebugError(err instanceof Error ? err.message : "Failed to load debug data");
+    } finally {
+      setIsDebugLoading(false);
+    }
   };
 
   const addRow = () => {
@@ -236,6 +256,34 @@ export const SettingsDrawer: React.FC<Props> = ({
               </button>
               {syncPrefsError && <p className="error-text">{syncPrefsError}</p>}
             </>
+          )}
+        </div>
+        <div className="credential-card">
+          <h3>Scraped data (debug)</h3>
+          <p className="status-card__meta">View raw rows the scraper stored in the local database.</p>
+          <button
+            className="credential-card__btn credential-card__btn--primary"
+            onClick={handleLoadDebug}
+            disabled={isDebugLoading}
+          >
+            {isDebugLoading ? "Loading…" : "Load scraped data"}
+          </button>
+          {debugError && <p className="error-text">{debugError}</p>}
+          {(debugData.famly || debugData.baby_connect) && (
+            <div className="debug-panel">
+              {["famly", "baby_connect"].map((source) => {
+                const payload = debugData[source as "famly" | "baby_connect"];
+                if (!payload) return null;
+                return (
+                  <details key={source} open>
+                    <summary>
+                      {source === "famly" ? "Famly events" : "Baby Connect events"} ({payload.count})
+                    </summary>
+                    <pre>{JSON.stringify(payload.events, null, 2)}</pre>
+                  </details>
+                );
+              })}
+            </div>
           )}
         </div>
         <div className="credential-card">
