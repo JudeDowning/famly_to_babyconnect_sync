@@ -115,6 +115,7 @@ const babyDisplayMap: Record<string, string> = {
   temperature: "Temperature",
   bath: "Bath",
   message: "Message",
+  potty: "Potty",
 };
 
 const getEventTitle = (type: string, sourceLabel: string) => {

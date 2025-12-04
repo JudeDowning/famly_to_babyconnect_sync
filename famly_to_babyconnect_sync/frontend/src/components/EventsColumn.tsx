@@ -62,6 +62,7 @@ const ICON_MAP: Record<string, string> = {
   medicine: assetUrl("/icons/medicine_v2.svg"),
   temperature: assetUrl("/icons/temperature_v2.svg"),
   bath: assetUrl("/icons/bath_v2.svg"),
+  potty: assetUrl("/icons/potty_v2.svg"),
 };
 
 const getIconForType = (type: string | undefined) => {

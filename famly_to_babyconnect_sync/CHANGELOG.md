@@ -45,3 +45,5 @@
 - Baby Connect scraper now stores the `posted_by` person (parsed from the “by …” tag) alongside the time so we can reference who logged each event. Existing `raw_data.author` continues to hold the timestamp for compatibility.
 ## 0.0.14
 - Mapping UI now normalizes stored targets so the dropdown reflects the actual configured type (instead of defaulting to Solid) and rebuilt the frontend bundle.
+## 0.0.15
+- Baby Connect “potty” events now display as “Potty” with the correct icon in both the comparison view and the Famly column. Rebuilt the frontend bundle.
