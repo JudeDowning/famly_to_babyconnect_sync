@@ -9,6 +9,7 @@ import {
   fetchMissingEventIds,
   syncAllMissingEvents,
   fetchSyncPreferences,
+  apiUrl,
 } from "./api";
 
 type DateFormat = "weekday-mon-dd" | "weekday-dd-mon";
@@ -57,7 +58,7 @@ const App: React.FC = () => {
   const pollersRef = useRef<{ [key in ServiceName]?: () => void }>({});
 
   const fetchStatus = async () => {
-    const res = await fetch("/api/status");
+    const res = await fetch(apiUrl("/api/status"));
     const data = await res.json();
 
     setFamlyStatus({
@@ -98,8 +99,8 @@ const App: React.FC = () => {
 
   const fetchEvents = async () => {
     const [famlyRes, bcRes] = await Promise.all([
-      fetch("/api/events?source=famly"),
-      fetch("/api/events?source=baby_connect"),
+      fetch(apiUrl("/api/events?source=famly")),
+      fetch(apiUrl("/api/events?source=baby_connect")),
     ]);
     const famlyData = await famlyRes.json();
     const bcData = await bcRes.json();
@@ -120,7 +121,9 @@ const App: React.FC = () => {
   };
 
   const scrapeFamly = async (daysBack: number) => {
-    const res = await fetch(`/api/scrape/famly?days_back=${daysBack}`, { method: "POST" });
+    const res = await fetch(apiUrl(`/api/scrape/famly?days_back=${daysBack}`), {
+      method: "POST",
+    });
     if (!res.ok) {
       throw new Error("Failed to scrape Famly");
     }
@@ -129,7 +132,7 @@ const App: React.FC = () => {
   };
 
   const scrapeBabyConnect = async (daysBack: number) => {
-    const res = await fetch(`/api/scrape/baby_connect?days_back=${daysBack}`, {
+    const res = await fetch(apiUrl(`/api/scrape/baby_connect?days_back=${daysBack}`), {
       method: "POST",
     });
     if (!res.ok) {
@@ -147,7 +150,7 @@ const App: React.FC = () => {
     const poll = async () => {
       if (stopped) return;
       try {
-        const res = await fetch(`/api/events?source=${source}`);
+        const res = await fetch(apiUrl(`/api/events?source=${source}`));
         if (!res.ok) {
           throw new Error("poll failed");
         }

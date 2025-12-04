@@ -5,13 +5,13 @@ interface CredentialResponse {
   email: string | null;
 }
 
-const INGRESS_PREFIX = (() => {
+export const INGRESS_PREFIX = (() => {
   if (typeof window === "undefined") return "";
   const match = window.location.pathname.match(/^\/api\/hassio_ingress\/[A-Za-z0-9_-]+/);
   return match ? match[0] : "";
 })();
 
-function apiUrl(path: string): string {
+export function apiUrl(path: string): string {
   if (path.startsWith("http://") || path.startsWith("https://")) {
     return path;
   }
