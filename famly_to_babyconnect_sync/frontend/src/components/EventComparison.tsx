@@ -130,17 +130,8 @@ const getEventTitle = (type: string, sourceLabel: string) => {
 
 const toDateKey = (iso: string) => new Date(iso).toISOString().slice(0, 10);
 
-const getDayIso = (ev: NormalisedEvent) => {
-  const startIso = ev.raw_data?.day_date_iso || toDateKey(ev.start_time_utc);
-  if (ev.source_system === "baby_connect" && ev.end_time_utc) {
-    const start = new Date(ev.start_time_utc);
-    const end = new Date(ev.end_time_utc);
-    if (end.toDateString() !== start.toDateString()) {
-      return toDateKey(ev.end_time_utc);
-    }
-  }
-  return startIso;
-};
+const getDayIso = (ev: NormalisedEvent) =>
+  ev.raw_data?.day_date_iso || toDateKey(ev.start_time_utc);
 
 const getTimestamp = (ev: NormalisedEvent) => {
   const raw = ev.raw_data?.event_datetime_iso || ev.start_time_utc;

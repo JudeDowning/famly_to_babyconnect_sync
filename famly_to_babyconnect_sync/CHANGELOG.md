@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.10
+- Overnight Baby Connect sleep entries remain in the day they were scraped (the “Today” list) but are ordered using their end time so morning wake-ups appear in the correct chronological slot.
+- Rebuilt the frontend bundle with the ordering tweak.
+
 ## 0.0.9
 - Overnight Baby Connect sleep entries now appear on the day they end, using the end time for both sorting and display in the UI.
 - Rebuilt the frontend bundle to include the new grouping logic.
