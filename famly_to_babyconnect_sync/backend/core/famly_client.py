@@ -158,6 +158,9 @@ class FamlyClient:
 
                     raw_title = title_el.inner_text().strip()
                     event_title = normalize_famly_title(raw_title)
+                    if (event_title or raw_title).lower().find("expected pick up") != -1:
+                        logger.debug("Famly scrape: skipping expected pick up entry")
+                        continue
 
                     # Collect detail lines and split entries
                     detail_lines = self._extract_detail_lines(content)

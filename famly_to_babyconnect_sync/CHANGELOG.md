@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.0.8
+- Filter out Famly's "Expected pick up" entries during scraping so they never reach the database or UI.
+
 ## 0.0.7
 - Served icon assets via the ingress-aware path so event icons render correctly inside the HA add-on UI.
 - Fixed residual mojibake in the progress overlay and rebuilt the frontend bundle.
