@@ -35,3 +35,6 @@
 
 ## 0.0.2
 - Improved Home Assistant compatibility: ingress-friendly frontend, persistent data paths, and Playwright-backed container image.
+## 0.0.11
+- Sleep rows are now sorted using the end time only when they span past midnight (start > end) so overnight Baby Connect sleeps appear at the correct spot in the following morning’s list; all other events keep using their start time.
+- Rebuilt the frontend bundle.

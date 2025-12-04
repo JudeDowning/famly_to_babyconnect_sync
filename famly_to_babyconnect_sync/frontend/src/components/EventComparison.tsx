@@ -133,16 +133,19 @@ const toDateKey = (iso: string) => new Date(iso).toISOString().slice(0, 10);
 const getDayIso = (ev: NormalisedEvent) =>
   ev.raw_data?.day_date_iso || toDateKey(ev.start_time_utc);
 
-const getTimestamp = (ev: NormalisedEvent) => {
-  const raw = ev.raw_data?.event_datetime_iso || ev.start_time_utc;
-  if (ev.source_system === "baby_connect" && ev.end_time_utc) {
-    const start = new Date(ev.start_time_utc);
+const getSortTimestamp = (ev: NormalisedEvent) => {
+  const start = new Date(ev.start_time_utc);
+  let useEnd = false;
+  if (ev.source_system === "baby_connect" && ev.event_type.toLowerCase().includes("sleep") && ev.end_time_utc) {
     const end = new Date(ev.end_time_utc);
-    if (end.toDateString() !== start.toDateString()) {
-      return end.getTime();
+    if (end.getTime() < start.getTime()) {
+      useEnd = true;
     }
   }
-  return new Date(raw).getTime();
+  if (useEnd) {
+    return new Date(ev.end_time_utc!).getTime();
+  }
+  return start.getTime();
 };
 
 const formatDayDisplay = (
@@ -199,12 +202,12 @@ const buildPairs = (
 
   const addEvent = (ev: NormalisedEvent, key: string, which: "famly" | "baby") => {
     if (!map.has(key)) {
-      map.set(key, {
-        key,
-        dayLabel: ev.raw_data?.day_label || getDayIso(ev),
-        dayIso: getDayIso(ev),
-        timestamp: getTimestamp(ev),
-      });
+    map.set(key, {
+      key,
+      dayLabel: ev.raw_data?.day_label || getDayIso(ev),
+      dayIso: getDayIso(ev),
+      timestamp: getSortTimestamp(ev),
+    });
     }
     map.get(key)![which] = ev;
   };
