@@ -1,16 +1,8 @@
-##### Frontend build stage #####################################################
-FROM node:20-alpine AS frontend-builder
+ARG BUILD_FROM
+FROM ${BUILD_FROM}
 
-WORKDIR /frontend
-COPY frontend/package*.json ./
-RUN npm ci
-COPY frontend/ ./
-RUN npm run build
-
-##### Backend/runtime stage ####################################################
-FROM mcr.microsoft.com/playwright/python:v1.47.0-jammy
-
-ENV PYTHONUNBUFFERED=1 \
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
     APP_HOST=0.0.0.0 \
     APP_PORT=8000 \
     HEADLESS=true \
@@ -19,11 +11,27 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
+# Install runtime dependencies and Playwright browsers
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        python3 \
+        python3-pip \
+        python3-venv \
+        python3-setuptools \
+        python3-wheel \
+        build-essential \
+        wget \
+        curl \
+        ca-certificates \
+        fonts-liberation \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip3 install --no-cache-dir -r requirements.txt \
+    && playwright install --with-deps chromium
 
 COPY backend ./backend
-COPY --from=frontend-builder /frontend/dist ./frontend/dist
+COPY frontend/dist ./frontend/dist
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh && mkdir -p /data
 
