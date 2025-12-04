@@ -3,9 +3,9 @@ from json import JSONDecodeError
 from pathlib import Path
 from typing import Dict, List
 
-from .config import BASE_DIR
+from .config import DATA_DIR
 
-CONFIG_PATH = BASE_DIR / "data" / "event_mapping.json"
+CONFIG_PATH = DATA_DIR / "event_mapping.json"
 CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 # Canonical Famly event labels we expect to configure

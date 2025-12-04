@@ -4,7 +4,12 @@ ENV PYTHONUNBUFFERED=1 \
     APP_HOST=0.0.0.0 \
     APP_PORT=8000 \
     HEADLESS=true \
+    DATA_DIR=/data \
     DB_PATH=/data/db.sqlite \
+    FAMLY_PROFILE_DIR=/data/famly-profile \
+    BABYCONNECT_PROFILE_DIR=/data/babyconnect-profile \
+    LOG_DIR=/data/logs \
+    LOG_FILE=/data/logs/famly_sync.log \
     PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
 WORKDIR /app

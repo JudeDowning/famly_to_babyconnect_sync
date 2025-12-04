@@ -2,9 +2,9 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List
 
-from .config import BASE_DIR
+from .config import DATA_DIR
 
-SETTINGS_DIR = BASE_DIR / "data"
+SETTINGS_DIR = DATA_DIR
 SETTINGS_PATH = SETTINGS_DIR / "settings.json"
 SYNC_INCLUDE_DEFAULT = [
     "solid",
