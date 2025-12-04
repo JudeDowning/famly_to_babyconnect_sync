@@ -7,7 +7,10 @@ ENV DEBIAN_FRONTEND=noninteractive \
     APP_PORT=8000 \
     HEADLESS=true \
     DB_PATH=/data/db.sqlite \
-    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
+    VIRTUAL_ENV=/opt/famly-sync-venv
+
+ENV PATH="${VIRTUAL_ENV}/bin:${PATH}"
 
 WORKDIR /app
 
@@ -30,7 +33,10 @@ RUN apk add --no-cache \
         ttf-dejavu
 
 COPY requirements.txt .
-RUN pip3 install --no-cache-dir -r requirements.txt \
+RUN python3 -m venv "${VIRTUAL_ENV}" \
+    && . "${VIRTUAL_ENV}/bin/activate" \
+    && pip install --upgrade pip \
+    && pip install --no-cache-dir -r requirements.txt \
     && playwright install --with-deps chromium
 
 COPY backend ./backend
