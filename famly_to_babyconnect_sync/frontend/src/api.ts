@@ -5,6 +5,22 @@ interface CredentialResponse {
   email: string | null;
 }
 
+const INGRESS_PREFIX = (() => {
+  if (typeof window === "undefined") return "";
+  const match = window.location.pathname.match(/^\/api\/hassio_ingress\/[A-Za-z0-9_-]+/);
+  return match ? match[0] : "";
+})();
+
+function apiUrl(path: string): string {
+  if (path.startsWith("http://") || path.startsWith("https://")) {
+    return path;
+  }
+  if (!path.startsWith("/")) {
+    return `${INGRESS_PREFIX}/${path}`;
+  }
+  return `${INGRESS_PREFIX}${path}`;
+}
+
 async function handleResponse(res: Response) {
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -15,7 +31,7 @@ async function handleResponse(res: Response) {
 }
 
 export async function loadCredentials(service: ServiceName): Promise<CredentialResponse> {
-  const res = await fetch(`/api/credentials/${service}`);
+  const res = await fetch(apiUrl(`/api/credentials/${service}`));
   return handleResponse(res);
 }
 
@@ -24,7 +40,7 @@ export async function saveCredentials(
   email: string,
   password: string,
 ): Promise<CredentialResponse> {
-  const res = await fetch(`/api/credentials/${service}`, {
+  const res = await fetch(apiUrl(`/api/credentials/${service}`), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
@@ -33,7 +49,7 @@ export async function saveCredentials(
 }
 
 export async function fetchEventMapping(): Promise<Record<string, string>> {
-  const res = await fetch("/api/settings/event-mapping");
+  const res = await fetch(apiUrl("/api/settings/event-mapping"));
   if (!res.ok) {
     throw new Error("Failed to load event mapping");
   }
@@ -42,7 +58,7 @@ export async function fetchEventMapping(): Promise<Record<string, string>> {
 }
 
 export async function saveEventMapping(mapping: Record<string, string>): Promise<void> {
-  const res = await fetch("/api/settings/event-mapping", {
+  const res = await fetch(apiUrl("/api/settings/event-mapping"), {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ mapping }),
@@ -54,7 +70,7 @@ export async function saveEventMapping(mapping: Record<string, string>): Promise
 }
 
 export async function fetchFamlyEventTypes(): Promise<string[]> {
-  const res = await fetch("/api/settings/famly-event-types");
+  const res = await fetch(apiUrl("/api/settings/famly-event-types"));
   if (!res.ok) {
     throw new Error("Failed to load Famly event types");
   }
@@ -64,7 +80,7 @@ export async function fetchFamlyEventTypes(): Promise<string[]> {
 
 export async function syncEventsToBabyConnect(eventIds: number[]): Promise<void> {
   if (!eventIds.length) return;
-  const res = await fetch("/api/sync/baby_connect/entries", {
+  const res = await fetch(apiUrl("/api/sync/baby_connect/entries"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ event_ids: eventIds }),
@@ -76,7 +92,7 @@ export async function syncEventsToBabyConnect(eventIds: number[]): Promise<void>
 }
 
 export async function fetchMissingEventIds(): Promise<number[]> {
-  const res = await fetch("/api/events/missing");
+  const res = await fetch(apiUrl("/api/events/missing"));
   if (!res.ok) {
     throw new Error("Failed to load missing events");
   }
@@ -85,7 +101,7 @@ export async function fetchMissingEventIds(): Promise<number[]> {
 }
 
 export async function syncAllMissingEvents(): Promise<void> {
-  const res = await fetch("/api/sync/missing", { method: "POST" });
+  const res = await fetch(apiUrl("/api/sync/missing"), { method: "POST" });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body?.detail || "Failed to sync missing entries");
@@ -93,7 +109,7 @@ export async function syncAllMissingEvents(): Promise<void> {
 }
 
 export async function fetchSyncPreferences(): Promise<SyncPreferences> {
-  const res = await fetch("/api/settings/sync-preferences");
+  const res = await fetch(apiUrl("/api/settings/sync-preferences"));
   if (!res.ok) {
     throw new Error("Failed to load sync preferences");
   }
@@ -109,7 +125,7 @@ export async function fetchSyncPreferences(): Promise<SyncPreferences> {
 export async function saveSyncPreferences(
   prefs: SyncPreferences,
 ): Promise<SyncPreferences> {
-  const res = await fetch("/api/settings/sync-preferences", {
+  const res = await fetch(apiUrl("/api/settings/sync-preferences"), {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(prefs),
