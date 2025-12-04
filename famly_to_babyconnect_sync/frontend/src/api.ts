@@ -21,6 +21,13 @@ export function apiUrl(path: string): string {
   return `${INGRESS_PREFIX}${path}`;
 }
 
+export function assetUrl(path: string): string {
+  if (!path.startsWith("/")) {
+    path = `/${path}`;
+  }
+  return `${INGRESS_PREFIX}${path}`;
+}
+
 async function handleResponse(res: Response) {
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));

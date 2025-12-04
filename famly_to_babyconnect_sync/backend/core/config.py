@@ -11,6 +11,7 @@ DB_PATH = Path(os.getenv("DB_PATH", DATA_DIR / "db.sqlite"))
 
 # Playwright user data directories (persist browser sessions & cookies)
 FAMLY_PROFILE_DIR = Path(os.getenv("FAMLY_PROFILE_DIR", DATA_DIR / "famly-profile"))
+FAMLY_CHILD_ID = os.getenv("FAMLY_CHILD_ID", "4b0ce49e-6393-4c65-97ee-9c80ec71b177").strip() or ""
 BABYCONNECT_PROFILE_DIR = Path(os.getenv("BABYCONNECT_PROFILE_DIR", DATA_DIR / "babyconnect-profile"))
 
 # Headless mode for Playwright (set to "false" in dev to see the browser)

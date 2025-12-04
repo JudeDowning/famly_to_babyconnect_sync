@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
 import { NormalisedEvent } from "../types";
+import { assetUrl } from "../api";
 
 type DateFormat = "weekday-mon-dd" | "weekday-dd-mon";
 
@@ -24,34 +25,36 @@ interface PairedRow {
   timestamp: number;
 }
 
+const icon = (path: string) => assetUrl(path);
+
 const defaultIconMap: Record<string, string> = {
-  nappy: "/icons/diapers_v2.svg",
-  diaper: "/icons/diapers_v2.svg",
-  bottle: "/icons/bib_v2.svg",
-  solid: "/icons/eat_v2.svg",
-  meal: "/icons/eat_v2.svg",
-  meals: "/icons/eat_v2.svg",
-  sleep: "/icons/sleep_v2.svg",
-  medicine: "/icons/medicine_v2.svg",
-  temperature: "/icons/temperature_v2.svg",
-  bath: "/icons/bath_v2.svg",
-  message: "/icons/msg_v2.svg",
+  nappy: icon("/icons/diapers_v2.svg"),
+  diaper: icon("/icons/diapers_v2.svg"),
+  bottle: icon("/icons/bib_v2.svg"),
+  solid: icon("/icons/eat_v2.svg"),
+  meal: icon("/icons/eat_v2.svg"),
+  meals: icon("/icons/eat_v2.svg"),
+  sleep: icon("/icons/sleep_v2.svg"),
+  medicine: icon("/icons/medicine_v2.svg"),
+  temperature: icon("/icons/temperature_v2.svg"),
+  bath: icon("/icons/bath_v2.svg"),
+  message: icon("/icons/msg_v2.svg"),
 };
 
 const famlyIconMap: Record<string, string> = {
-  nappy: "/icons/famly_diaper.svg",
-  "nappy change": "/icons/famly_diaper.svg",
-  diaper: "/icons/famly_diaper.svg",
-  solid: "/icons/famly_meals.svg",
-  meals: "/icons/famly_meals.svg",
-  meal: "/icons/famly_meals.svg",
-  sleep: "/icons/famly_sleep.svg",
-  "signed in": "/icons/famly_sign_in.svg",
-  "sign in": "/icons/famly_sign_in.svg",
-  "signed out": "/icons/famly_sign_out.svg",
-  "sign out": "/icons/famly_sign_out.svg",
-  ill: "/icons/famly_sick.svg",
-  sick: "/icons/famly_sick.svg",
+  nappy: icon("/icons/famly_diaper.svg"),
+  "nappy change": icon("/icons/famly_diaper.svg"),
+  diaper: icon("/icons/famly_diaper.svg"),
+  solid: icon("/icons/famly_meals.svg"),
+  meals: icon("/icons/famly_meals.svg"),
+  meal: icon("/icons/famly_meals.svg"),
+  sleep: icon("/icons/famly_sleep.svg"),
+  "signed in": icon("/icons/famly_sign_in.svg"),
+  "sign in": icon("/icons/famly_sign_in.svg"),
+  "signed out": icon("/icons/famly_sign_out.svg"),
+  "sign out": icon("/icons/famly_sign_out.svg"),
+  ill: icon("/icons/famly_sick.svg"),
+  sick: icon("/icons/famly_sick.svg"),
 };
 
 const SIGN_EVENT_TYPES = ["signed in", "sign in", "signed out", "sign out"];

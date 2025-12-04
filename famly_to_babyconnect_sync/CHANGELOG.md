@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.0.7
+- Served icon assets via the ingress-aware path so event icons render correctly inside the HA add-on UI.
+- Fixed residual mojibake in the progress overlay and rebuilt the frontend bundle.
+
+## 0.0.6
+- Made the Famly child profile selector configurable via `FAMLY_CHILD_ID` and added a fallback that clicks the first child entry when the configured ID isn’t found. Scrape failures now log a clear runtime error instead of timing out silently.
+- Cleaned up the progress overlay text so it displays “Scraping …” without mojibake.
+- Rebuilt the frontend bundle after the text fix.
+
 ## 0.0.5
 - Added API logging/exception handling for scrape/sync endpoints so failures show up in Home Assistant logs.
 - Added backend credential test endpoint plus frontend integration so the “Test” buttons actually verify logins.

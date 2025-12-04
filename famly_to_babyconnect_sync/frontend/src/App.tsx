@@ -228,7 +228,7 @@ const App: React.FC = () => {
     stopPollers();
     setProgress({
       visible: true,
-      label: "Scraping FamlyÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦",
+      label: "Scraping Famly...",
       currentStep: 0,
       totalSteps: 1,
       famlyTarget: 0,
@@ -255,7 +255,7 @@ const App: React.FC = () => {
     stopPollers();
     setProgress({
       visible: true,
-      label: "Scraping Baby ConnectÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦",
+      label: "Scraping Baby Connect...",
       currentStep: 0,
       totalSteps: 1,
       famlyTarget: 0,
@@ -282,7 +282,7 @@ const App: React.FC = () => {
     stopPollers();
     setProgress({
       visible: true,
-      label: "Scraping FamlyÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦",
+      label: "Scraping Famly...",
       currentStep: 0,
       totalSteps: 2,
       famlyTarget: 0,
@@ -295,7 +295,7 @@ const App: React.FC = () => {
         setProgress((prev) => ({
           ...prev,
           currentStep: 1,
-          label: "Scraping Baby ConnectÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦",
+          label: "Scraping Baby Connect...",
           famlyTarget: famlyCount,
         }));
         stopFamlyPoll();

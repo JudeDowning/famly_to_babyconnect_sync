@@ -19,7 +19,9 @@ from datetime import datetime, date, time, timedelta
 
 from playwright.sync_api import sync_playwright
 
-from .config import FAMLY_PROFILE_DIR, HEADLESS
+from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
+
+from .config import FAMLY_PROFILE_DIR, HEADLESS, FAMLY_CHILD_ID
 from .normalisation import RawFamlyEvent
 from .event_mapping import normalize_famly_title
 
@@ -38,17 +40,23 @@ EVENT_TITLE_SELECTOR = "[data-e2e-class='event-title']"
 EVENT_DETAIL_LINES_SELECTOR = "small"
 
 # Child selection
-CHILD_ID = "4b0ce49e-6393-4c65-97ee-9c80ec71b177"  # TODO: move to env/config
-CHILD_LINK_SELECTOR = f"a[data-e2e-id='NavigationGroup-Child-{CHILD_ID}']"
+GENERIC_CHILD_LINK_SELECTOR = "a[data-e2e-id^='NavigationGroup-Child-']"
 CHILD_NAME_SELECTOR = "#personProfile h2.title-test-marker"
 
 logger = logging.getLogger(__name__)
 
 
 class FamlyClient:
-    def __init__(self, email: str, password: str) -> None:
+    def __init__(self, email: str, password: str, child_id: str | None = None) -> None:
         self.email = email
         self.password = password
+        self.child_id = (child_id.strip() if child_id else FAMLY_CHILD_ID).strip()
+
+    @property
+    def child_link_selector(self) -> str | None:
+        if self.child_id:
+            return f"a[data-e2e-id='NavigationGroup-Child-{self.child_id}']"
+        return None
 
     def login_and_scrape(self, days_back: int = 0) -> List[RawFamlyEvent]:
         """
@@ -86,9 +94,7 @@ class FamlyClient:
             # At this point we should be on /account/feed/me
 
             # 3. Click the child icon/link in the sidebar
-            logger.info("Famly scrape: selecting child link %s", CHILD_LINK_SELECTOR)
-            page.wait_for_selector(CHILD_LINK_SELECTOR)
-            page.click(CHILD_LINK_SELECTOR)
+            self._select_child(page)
 
             # 4. Wait for navigation to child's activity feed
             logger.info("Famly scrape: waiting for child activity feed to load")
@@ -220,9 +226,30 @@ class FamlyClient:
                 page.fill(PASSWORD_SELECTOR, self.password)
                 page.click(LOGIN_BUTTON_SELECTOR)
                 page.wait_for_load_state("networkidle")
-            page.wait_for_selector(CHILD_LINK_SELECTOR, timeout=10000)
+            self._select_child(page)
             browser.close()
             logger.info("Famly client: login verification successful")
+
+    def _select_child(self, page) -> None:
+        selectors_to_try = []
+        if self.child_link_selector:
+            selectors_to_try.append(self.child_link_selector)
+        selectors_to_try.append(GENERIC_CHILD_LINK_SELECTOR)
+        last_error = None
+        for selector in selectors_to_try:
+            try:
+                logger.info("Famly scrape: selecting child link %s", selector)
+                page.wait_for_selector(selector, timeout=15000)
+                element = page.query_selector(selector)
+                if element:
+                    element.click()
+                    return
+            except PlaywrightTimeoutError as exc:
+                last_error = exc
+                logger.warning("Famly scrape: selector %s not found, trying fallback", selector)
+        raise RuntimeError(
+            "Unable to locate child profile link in Famly. Set FAMLY_CHILD_ID env var if multiple children exist."
+        ) from last_error
 
     def _extract_time_string(self, lines: list[str]) -> str:
         """

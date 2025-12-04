@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
 import { NormalisedEvent } from "../types";
+import { assetUrl } from "../api";
 
 interface Props {
   title: string;
@@ -50,17 +51,17 @@ const dedupeSequential = (lines: string[]) => {
 };
 
 const ICON_MAP: Record<string, string> = {
-  nappy: "/icons/diapers_v2.svg",
-  diaper: "/icons/diapers_v2.svg",
-  "nappy change": "/icons/diapers_v2.svg",
-  bottle: "/icons/bib_v2.svg",
-  solid: "/icons/eat_v2.svg",
-  meal: "/icons/eat_v2.svg",
-  meals: "/icons/eat_v2.svg",
-  sleep: "/icons/sleep_v2.svg",
-  medicine: "/icons/medicine_v2.svg",
-  temperature: "/icons/temperature_v2.svg",
-  bath: "/icons/bath_v2.svg",
+  nappy: assetUrl("/icons/diapers_v2.svg"),
+  diaper: assetUrl("/icons/diapers_v2.svg"),
+  "nappy change": assetUrl("/icons/diapers_v2.svg"),
+  bottle: assetUrl("/icons/bib_v2.svg"),
+  solid: assetUrl("/icons/eat_v2.svg"),
+  meal: assetUrl("/icons/eat_v2.svg"),
+  meals: assetUrl("/icons/eat_v2.svg"),
+  sleep: assetUrl("/icons/sleep_v2.svg"),
+  medicine: assetUrl("/icons/medicine_v2.svg"),
+  temperature: assetUrl("/icons/temperature_v2.svg"),
+  bath: assetUrl("/icons/bath_v2.svg"),
 };
 
 const getIconForType = (type: string | undefined) => {
