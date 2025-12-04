@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.9
+- Overnight Baby Connect sleep entries now appear on the day they end, using the end time for both sorting and display in the UI.
+- Rebuilt the frontend bundle to include the new grouping logic.
+
 ## 0.0.8
 - Filter out Famly's "Expected pick up" entries during scraping so they never reach the database or UI.
 
