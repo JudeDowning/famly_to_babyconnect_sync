@@ -1,1 +1,6 @@
-node_modules\nfrontend/node_modules\nfrontend/dist\ndata\n.git\n
+node_modules/
+frontend/node_modules/
+frontend/dist/
+data/
+.git/
+
