@@ -6,6 +6,14 @@ from typing import Dict, List
 from .config import DATA_DIR
 
 CONFIG_PATH = DATA_DIR / "event_mapping.json"
+
+DEFAULT_EVENT_MAPPING: Dict[str, str] = {
+    "meals": "Solid",
+    "nappy": "Nappy",
+    "sleep": "Sleep",
+    "signed in": "Message",
+    "signed out": "Message",
+}
 CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 # Canonical Famly event labels we expect to configure
@@ -36,16 +44,17 @@ FALLBACK_KEYWORDS = {
 
 def _load_mapping() -> Dict[str, str]:
     if not CONFIG_PATH.exists():
-        CONFIG_PATH.write_text("{}", encoding="utf-8")
-        return {}
+        CONFIG_PATH.write_text(json.dumps(DEFAULT_EVENT_MAPPING, indent=2), encoding="utf-8")
+        return DEFAULT_EVENT_MAPPING.copy()
 
     try:
         data = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
-        if not isinstance(data, dict):
-            return {}
-        cleaned = {str(k): str(v) for k, v in data.items()}
+        if not isinstance(data, dict) or not data:
+            raise JSONDecodeError("invalid mapping", "", 0)
+        cleaned = {str(k): str(v) for k, v in data.items() if str(k)}
     except JSONDecodeError:
-        cleaned = {}
+        cleaned = DEFAULT_EVENT_MAPPING.copy()
+        CONFIG_PATH.write_text(json.dumps(cleaned, indent=2), encoding="utf-8")
     return cleaned
 
 
