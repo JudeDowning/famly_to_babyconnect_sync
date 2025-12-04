@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.0.11
+- Sleep rows are now sorted using the end time only when they span past midnight (start > end) so overnight Baby Connect sleeps appear at the correct spot in the following morning’s list; all other events keep using their start time.
+
 ## 0.0.10
 - Overnight Baby Connect sleep entries remain in the day they were scraped (the “Today” list) but are ordered using their end time so morning wake-ups appear in the correct chronological slot.
 - Rebuilt the frontend bundle with the ordering tweak.
@@ -35,6 +38,3 @@
 
 ## 0.0.2
 - Improved Home Assistant compatibility: ingress-friendly frontend, persistent data paths, and Playwright-backed container image.
-## 0.0.11
-- Sleep rows are now sorted using the end time only when they span past midnight (start > end) so overnight Baby Connect sleeps appear at the correct spot in the following morning’s list; all other events keep using their start time.
-- Rebuilt the frontend bundle.
