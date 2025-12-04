@@ -93,8 +93,8 @@ export async function fetchFamlyEventTypes(): Promise<string[]> {
   return Array.isArray(data.types) ? data.types : [];
 }
 
-export async function syncEventsToBabyConnect(eventIds: number[]): Promise<void> {
-  if (!eventIds.length) return;
+export async function syncEventsToBabyConnect(eventIds: number[]): Promise<any> {
+  if (!eventIds.length) return { created: 0, synced_event_ids: [] };
   const res = await fetch(apiUrl("/api/sync/baby_connect/entries"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -104,6 +104,7 @@ export async function syncEventsToBabyConnect(eventIds: number[]): Promise<void>
     const body = await res.json().catch(() => ({}));
     throw new Error(body?.detail || "Failed to sync entry to Baby Connect");
   }
+  return res.json();
 }
 
 export async function fetchMissingEventIds(): Promise<number[]> {
@@ -115,12 +116,13 @@ export async function fetchMissingEventIds(): Promise<number[]> {
   return Array.isArray(data.missing_event_ids) ? data.missing_event_ids : [];
 }
 
-export async function syncAllMissingEvents(): Promise<void> {
+export async function syncAllMissingEvents(): Promise<any> {
   const res = await fetch(apiUrl("/api/sync/missing"), { method: "POST" });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body?.detail || "Failed to sync missing entries");
   }
+  return res.json();
 }
 
 export async function fetchSyncPreferences(): Promise<SyncPreferences> {

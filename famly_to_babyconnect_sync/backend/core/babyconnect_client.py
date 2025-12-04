@@ -203,10 +203,51 @@ class BabyConnectClient:
 
             browser.close()
 
+    def _wait_for_overlay_clear(self, page: Page, timeout: int = 5000) -> None:
+        """
+        Ensure modal overlays are not blocking interactions.
+        """
+        try:
+            page.wait_for_function(
+                """() => {
+                    const overlays = Array.from(document.querySelectorAll('.ui-widget-overlay'));
+                    return overlays.every((el) => {
+                        const style = window.getComputedStyle(el);
+                        return style.visibility === 'hidden' || style.display === 'none' || el.offsetParent === null;
+                    });
+                }""",
+                timeout=timeout,
+            )
+        except PlaywrightTimeoutError:
+            logger.debug("BabyConnect: overlay still visible after waiting, continuing anyway")
+
+    def _close_any_open_dialog(self, page: Page) -> None:
+        """
+        Close any existing modal dialog so the overlay disappears before opening a new one.
+        """
+        close_buttons = page.locator(".ui-dialog .ui-dialog-titlebar-close")
+        if close_buttons.count():
+            try:
+                close_buttons.last.click()
+                page.wait_for_timeout(200)
+                last_dialog = page.locator(".ui-dialog").last
+                try:
+                    last_dialog.wait_for(state="detached", timeout=4000)
+                except PlaywrightTimeoutError:
+                    logger.debug("BabyConnect: previous dialog still attached after close attempt")
+            except Exception:
+                logger.debug("BabyConnect: error while closing prior dialog", exc_info=True)
+        self._wait_for_overlay_clear(page)
+
     def _open_entry_dialog(self, page: Page, callback_fragment: str) -> Page:
-        page.locator(f"#new_entries_panel a[href*='{callback_fragment}']").first.click()
+        self._close_any_open_dialog(page)
+        link = page.locator(f"#new_entries_panel a[href*='{callback_fragment}']").first
+        link.scroll_into_view_if_needed()
+        self._wait_for_overlay_clear(page)
+        link.click()
         dialog = page.locator(".ui-dialog").last
         dialog.wait_for(state="visible")
+        self._wait_for_overlay_clear(page)
         return dialog
 
     def _format_time_for_input(self, value: str | None) -> str:

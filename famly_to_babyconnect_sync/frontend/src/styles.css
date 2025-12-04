@@ -279,6 +279,17 @@ body {
   font-size: 13px;
 }
 
+.progress-stats--sync {
+  justify-content: center;
+}
+
+.progress-stats--sync span {
+  margin-left: 4px;
+  font-size: 13px;
+  color: rgba(226, 232, 240, 0.7);
+}
+
+
 .progress-stats p {
   margin: 0;
   color: rgba(226, 232, 240, 0.7);
@@ -624,6 +635,18 @@ body {
   background: linear-gradient(135deg, rgba(74, 222, 128, 0.08), rgba(15, 118, 110, 0.15)),
     rgba(11, 18, 36, 0.9);
 }
+
+.pair-row--failed .event-card {
+  border-color: rgba(248, 113, 113, 0.8);
+  box-shadow: 0 8px 24px rgba(248, 113, 113, 0.2);
+}
+
+.arrow-pill--failed {
+  border-color: rgba(248, 113, 113, 0.6);
+  background: rgba(248, 113, 113, 0.15);
+  color: #fecaca;
+}
+
 
 .event-card {
   border-radius: 18px;

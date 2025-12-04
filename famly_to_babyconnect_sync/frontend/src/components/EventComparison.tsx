@@ -14,6 +14,7 @@ interface Props {
   showMissingOnly?: boolean;
   onToggleMissing?: () => void;
   controlsSlot?: React.ReactNode;
+  failedEventIds?: number[];
 }
 
 interface PairedRow {
@@ -379,6 +380,7 @@ export const EventComparison: React.FC<Props> = ({
   showMissingOnly = false,
   onToggleMissing,
   controlsSlot,
+  failedEventIds = [],
 }) => {
   const rows = useMemo(() => buildPairs(famlyEvents, babyEvents), [famlyEvents, babyEvents]);
 
@@ -450,19 +452,39 @@ export const EventComparison: React.FC<Props> = ({
               const showArrow = !!famlyEventId && !!row.famly && !row.baby && !!onSyncEvent;
               const isSyncingThis =
                 !!famlyEventId && syncingEventId === famlyEventId;
+              const isFailed =
+                !!famlyEventId && failedEventIds.includes(famlyEventId);
               const arrowDisabled =
                 !showArrow ||
                 isBulkSyncing ||
                 (syncingEventId !== null && !isSyncingThis);
+              const arrowClasses = ["arrow-pill"];
+              if (isMatched) {
+                arrowClasses.push("arrow-pill--matched");
+              }
+              if (isFailed) {
+                arrowClasses.push("arrow-pill--failed");
+              }
+              const glyph = isFailed
+                ? "!"
+                : isSyncingThis
+                ? "…"
+                : showArrow
+                ? "→"
+                : isMatched
+                ? "✓"
+                : "";
               return (
                 <div
                   key={row.key}
-                  className={`pair-row${isMatched ? " pair-row--matched" : ""}`}
+                  className={`pair-row${
+                    isMatched ? " pair-row--matched" : ""
+                  }${isFailed ? " pair-row--failed" : ""}`}
                 >
                   <EventTile event={row.famly} label="Famly" />
                   <button
                     type="button"
-                    className={`arrow-pill${isMatched ? " arrow-pill--matched" : ""}`}
+                    className={arrowClasses.join(" ")}
                     disabled={arrowDisabled}
                     onClick={() => {
                       if (showArrow && famlyEventId) {
@@ -470,7 +492,9 @@ export const EventComparison: React.FC<Props> = ({
                       }
                     }}
                     aria-label={
-                      isSyncingThis
+                      isFailed
+                        ? "Previous sync attempt failed"
+                        : isSyncingThis
                         ? "Syncing entry"
                         : showArrow
                         ? "Create this Famly entry in Baby Connect"
@@ -479,18 +503,14 @@ export const EventComparison: React.FC<Props> = ({
                         : "No action"
                     }
                   >
-                    {isSyncingThis
-                      ? "…"
-                      : showArrow
-                      ? "→"
-                      : isMatched
-                      ? "✓"
-                      : ""}
+                    {glyph}
                   </button>
                   <EventTile event={row.baby} label="Baby Connect" />
                 </div>
               );
             })}
+
+
           </section>
         );
       })}

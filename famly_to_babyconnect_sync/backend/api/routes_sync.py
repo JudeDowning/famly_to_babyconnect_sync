@@ -63,7 +63,10 @@ def sync():
 def create_babyconnect_entries(payload: CreateEntriesPayload):
     logger.info("API: creating %d baby connect entries", len(payload.event_ids))
     try:
-        return create_entries_service(payload.event_ids)
+        result = create_entries_service(payload.event_ids)
+        response = dict(result)
+        response.setdefault("synced_event_ids", payload.event_ids)
+        return response
     except Exception as exc:
         logger.exception("API: failed to create baby connect entries")
         raise HTTPException(status_code=500, detail=str(exc))
@@ -85,6 +88,7 @@ def sync_missing_entries():
         response = dict(result)
         response.setdefault("status", "ok")
         response["missing_event_ids"] = missing_ids
+        response.setdefault("synced_event_ids", missing_ids)
         return response
     except Exception as exc:
         logger.exception("API: failed to sync missing entries")

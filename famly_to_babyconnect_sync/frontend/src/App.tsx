@@ -14,13 +14,18 @@ import {
 
 type DateFormat = "weekday-mon-dd" | "weekday-dd-mon";
 
+type ProgressMode = "scrape" | "sync" | null;
+
 type ProgressState = {
+  mode: ProgressMode;
   visible: boolean;
   label: string;
   currentStep: number;
   totalSteps: number;
   famlyTarget: number;
   babyTarget: number;
+  syncCurrent: number;
+  syncTotal: number;
 };
 
 const App: React.FC = () => {
@@ -45,17 +50,35 @@ const App: React.FC = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [dateFormat, setDateFormat] = useState<DateFormat>("weekday-mon-dd");
   const [progress, setProgress] = useState<ProgressState>({
+    mode: null,
     visible: false,
     label: "",
     currentStep: 0,
     totalSteps: 0,
     famlyTarget: 0,
     babyTarget: 0,
+    syncCurrent: 0,
+    syncTotal: 0,
   });
   const [syncingEventId, setSyncingEventId] = useState<number | null>(null);
   const [syncAllInFlight, setSyncAllInFlight] = useState(false);
   const [showMissingOnly, setShowMissingOnly] = useState(false);
+  const [failedEventIds, setFailedEventIds] = useState<number[]>([]);
   const pollersRef = useRef<{ [key in ServiceName]?: () => void }>({});
+
+  const registerSyncFailure = useCallback((ids: number[]) => {
+    if (!ids.length) return;
+    setFailedEventIds((prev) => {
+      const merged = new Set(prev);
+      ids.forEach((id) => merged.add(id));
+      return Array.from(merged);
+    });
+  }, []);
+
+  const clearSyncFailures = useCallback((ids: number[]) => {
+    if (!ids.length) return;
+    setFailedEventIds((prev) => prev.filter((id) => !ids.includes(id)));
+  }, []);
 
   const fetchStatus = async () => {
     const res = await fetch(apiUrl("/api/status"));
@@ -224,15 +247,48 @@ const App: React.FC = () => {
     }
   };
 
+  const beginSyncProgress = (total: number, label?: string) => {
+    const safeTotal = Math.max(total, 1);
+    setProgress({
+      mode: "sync",
+      visible: true,
+      label: label || (safeTotal === 1 ? "Syncing entry..." : "Syncing entries..."),
+      currentStep: 0,
+      totalSteps: safeTotal,
+      famlyTarget: 0,
+      babyTarget: 0,
+      syncCurrent: 0,
+      syncTotal: safeTotal,
+    });
+  };
+
+  const finishSyncProgress = (completed: number, label?: string) => {
+    setProgress((prev) => ({
+      ...prev,
+      syncCurrent: Math.min(completed, prev.syncTotal || 1),
+      label: label || prev.label,
+    }));
+    setTimeout(() => {
+      setProgress((prev) => ({
+        ...prev,
+        mode: null,
+        visible: false,
+      }));
+    }, 600);
+  };
+
   const handleScrapeFamly = async (daysBack: number) => {
     stopPollers();
     setProgress({
+      mode: "scrape",
       visible: true,
       label: "Scraping Famly...",
       currentStep: 0,
       totalSteps: 1,
       famlyTarget: 0,
       babyTarget: 0,
+      syncCurrent: 0,
+      syncTotal: 0,
     });
     const stopFamlyPoll = startProgressPolling("famly", famlyEvents.length);
     await runScrapeOperation(
@@ -248,18 +304,21 @@ const App: React.FC = () => {
     );
     stopFamlyPoll();
     await new Promise((resolve) => setTimeout(resolve, 500));
-    setProgress((prev) => ({ ...prev, visible: false }));
+    setProgress((prev) => ({ ...prev, visible: false, mode: null }));
   };
 
   const handleScrapeBabyConnect = async (daysBack: number = scrapeDaysBack) => {
     stopPollers();
     setProgress({
+      mode: "scrape",
       visible: true,
       label: "Scraping Baby Connect...",
       currentStep: 0,
       totalSteps: 1,
       famlyTarget: 0,
       babyTarget: 0,
+      syncCurrent: 0,
+      syncTotal: 0,
     });
     const stopBabyPoll = startProgressPolling("baby_connect", bcEvents.length);
     await runScrapeOperation(
@@ -275,18 +334,21 @@ const App: React.FC = () => {
     );
     stopBabyPoll();
     await new Promise((resolve) => setTimeout(resolve, 500));
-    setProgress((prev) => ({ ...prev, visible: false }));
+    setProgress((prev) => ({ ...prev, visible: false, mode: null }));
   };
 
   const handleScrapeAll = async () => {
     stopPollers();
     setProgress({
+      mode: "scrape",
       visible: true,
       label: "Scraping Famly...",
       currentStep: 0,
       totalSteps: 2,
       famlyTarget: 0,
       babyTarget: 0,
+      syncCurrent: 0,
+      syncTotal: 0,
     });
     const stopFamlyPoll = startProgressPolling("famly", famlyEvents.length);
     await runScrapeOperation(
@@ -314,19 +376,28 @@ const App: React.FC = () => {
       },
     );
     await new Promise((resolve) => setTimeout(resolve, 500));
-    setProgress((prev) => ({ ...prev, visible: false }));
+    setProgress((prev) => ({ ...prev, visible: false, mode: null }));
   };
 
   const handleSyncAll = async () => {
     if (!missingEventIds.length) return;
+    const targetIds = [...missingEventIds];
+    beginSyncProgress(targetIds.length);
     setSyncAllInFlight(true);
     try {
-      await syncAllMissingEvents();
+      const result = await syncAllMissingEvents();
+      const syncedIds: number[] = Array.isArray(result?.synced_event_ids)
+        ? result.synced_event_ids
+        : targetIds;
+      clearSyncFailures(syncedIds);
       await fetchEvents();
+      finishSyncProgress(syncedIds.length, "Sync complete");
     } catch (err) {
       console.error(err);
       alert(err instanceof Error ? err.message : "Failed to sync entries");
       markConnectionError("baby_connect");
+      registerSyncFailure(targetIds);
+      finishSyncProgress(0, "Sync failed");
     } finally {
       setSyncAllInFlight(false);
     }
@@ -334,12 +405,21 @@ const App: React.FC = () => {
 
   const handleSyncSingleEvent = async (eventId: number) => {
     setSyncingEventId(eventId);
+    beginSyncProgress(1);
     try {
-      await syncEventsToBabyConnect([eventId]);
+      const result = await syncEventsToBabyConnect([eventId]);
+      const syncedIds: number[] = Array.isArray(result?.synced_event_ids)
+        ? result.synced_event_ids
+        : [eventId];
+      clearSyncFailures(syncedIds);
       await fetchEvents();
+      finishSyncProgress(syncedIds.length, "Entry synced");
     } catch (err) {
       console.error(err);
       alert(err instanceof Error ? err.message : "Failed to sync entry");
+      registerSyncFailure([eventId]);
+      markConnectionError("baby_connect");
+      finishSyncProgress(0, "Sync failed");
     } finally {
       setSyncingEventId(null);
     }
@@ -478,6 +558,7 @@ const App: React.FC = () => {
             isBulkSyncing={syncAllInFlight}
             showMissingOnly={showMissingOnly}
             onToggleMissing={() => setShowMissingOnly((prev) => !prev)}
+            failedEventIds={failedEventIds}
           />
         </main>
       </div>
