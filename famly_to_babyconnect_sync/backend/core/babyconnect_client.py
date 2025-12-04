@@ -700,7 +700,8 @@ class BabyConnectClient:
 
             raw_data = {
                 "icon_src": icon_src,
-                "author": author,
+                "author": time_str,
+                "posted_by": author,
                 "note": note_text,
                 "raw_html": node.inner_html(),
                 "day_label": day_label,

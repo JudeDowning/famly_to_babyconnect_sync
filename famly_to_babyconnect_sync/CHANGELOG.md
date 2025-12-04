@@ -41,3 +41,5 @@
 ## 0.0.12
 - Added `/api/debug/events` endpoint plus a “Scraped data (debug)” section in the settings drawer so you can inspect the raw Famly/Baby Connect rows directly from the UI.
 - Rebuilt the frontend bundle with the debug view.
+## 0.0.13
+- Baby Connect scraper now stores the `posted_by` person (parsed from the “by …” tag) alongside the time so we can reference who logged each event. Existing `raw_data.author` continues to hold the timestamp for compatibility.
