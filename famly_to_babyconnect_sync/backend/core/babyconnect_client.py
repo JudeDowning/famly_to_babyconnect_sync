@@ -163,6 +163,8 @@ class BabyConnectClient:
 
         logger.info("BabyConnect: creating %d entries", len(entries))
 
+        any_success = False
+
         with sync_playwright() as p:
             browser = p.chromium.launch_persistent_context(
                 user_data_dir=str(BABYCONNECT_PROFILE_DIR),
@@ -198,10 +200,25 @@ class BabyConnectClient:
                         self._create_message_entry(page, entry)
                     else:
                         logger.warning("BabyConnect: unsupported entry type %s", event_type)
+                        continue
+                    any_success = True
                 except Exception:
                     logger.exception("BabyConnect: failed to create entry %s", entry)
 
             browser.close()
+
+        if any_success:
+            try:
+                recent_days = _recent_famly_dates(30)
+                refresh_days_back = max(0, len(recent_days) - 1)
+                refreshed = scrape_babyconnect_and_store(days_back=refresh_days_back)
+                refreshed_count = len(refreshed)
+            except Exception:
+                refreshed_count = 0
+        else:
+            refreshed_count = 0
+
+        return {"status": "ok", "created": len(entries) if any_success else 0, "refreshed": refreshed_count}
 
     def _wait_for_overlay_clear(self, page: Page, timeout: int = 5000) -> None:
         """
@@ -470,7 +487,17 @@ class BabyConnectClient:
             "wet": "#diaper3",
             "dry": "#diaper4",
         }
-        dialog.locator(radio_map.get(diaper_type, "#diaper3")).check()
+        target_selector = radio_map.get(diaper_type, "#diaper3")
+        target = dialog.locator(target_selector)
+        try:
+            target.check()
+        except PlaywrightTimeoutError:
+            # If radio is hidden, trigger via associated label or force
+            label = dialog.locator(f"label[for='{target_selector.lstrip('#')}']")
+            if label.count():
+                label.first.click()
+            else:
+                target.check(force=True)
 
         quantity = entry.get("quantity")
         if quantity is not None and dialog.locator("#qtycombo").count():
