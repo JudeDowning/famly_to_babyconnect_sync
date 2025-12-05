@@ -1,10 +1,11 @@
 # Changelog
 
+## 0.0.27
+- Baby Connect sleep events now parse the "start to end" time range from the detail lines and populate `end_time_utc`, so overnight sleeps are displayed in the correct chronological order the following morning.
+- The comparison view now sorts Baby Connect sleep entries using the day label plus the wake-up time so overnight sleeps appear in the morning slot of the correct day.
+
 ## 0.0.26
 - Prevent Baby Connect diaper syncs from failing if the modal takes too long to detach; we now tolerate the lingering dialog instead of raising an exception.
-
-## 0.0.27
-- Baby Connect sleep events now parse the “start to end” time range from the detail lines and populate `end_time_utc`, so overnight sleeps are displayed in the correct chronological order the following morning.
 
 ## 0.0.25
 - Relaxed the duplicate detector by stripping portion descriptors (text inside parentheses) from Famly detail lines, so meals like "Fruit platter (Half)" vs "Fruit platter (Little)" still count as duplicates.

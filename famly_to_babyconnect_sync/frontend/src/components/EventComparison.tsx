@@ -124,16 +124,29 @@ const getDayIso = (ev: NormalisedEvent) =>
   ev.raw_data?.day_date_iso || toDateKey(ev.start_time_utc);
 const getSortTimestamp = (ev: NormalisedEvent) => {
   const start = new Date(ev.start_time_utc);
-  let useEnd = false;
-  if (ev.source_system === "baby_connect" && ev.event_type.toLowerCase().includes("sleep") && ev.end_time_utc) {
-    const end = new Date(ev.end_time_utc);
-    if (end.getTime() < start.getTime()) {
-      useEnd = true;
+  const endUtc = ev.end_time_utc ? new Date(ev.end_time_utc) : null;
+  const dayIso = getDayIso(ev);
+  const isBabySleep =
+    ev.source_system === "baby_connect" &&
+    (ev.event_type || "").toLowerCase().includes("sleep");
+
+  if (isBabySleep && endUtc) {
+    let sortDate = endUtc;
+    if (dayIso) {
+      const base = new Date(`${dayIso}T00:00:00Z`);
+      if (!Number.isNaN(base.getTime())) {
+        sortDate = new Date(base.getTime());
+        sortDate.setUTCHours(
+          endUtc.getUTCHours(),
+          endUtc.getUTCMinutes(),
+          endUtc.getUTCSeconds(),
+          endUtc.getUTCMilliseconds(),
+        );
+      }
     }
+    return sortDate.getTime();
   }
-  if (useEnd) {
-    return new Date(ev.end_time_utc!).getTime();
-  }
+
   return start.getTime();
 };
 const formatDayDisplay = (
