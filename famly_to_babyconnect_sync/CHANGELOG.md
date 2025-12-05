@@ -9,6 +9,9 @@
 ## 0.0.34
 - Backend matching logic now compares Famly and Baby Connect fingerprints (the canonical detail signature) instead of just day+start minute, so entries you synced—like nappies and sleeps with slight timestamp drift—are recognised as matched rather than staying "missing".
 
+## 0.0.35
+- The canonical detail snippet used by fingerprints now ignores leading time lines, strips `[Sync]`, collapses whitespace, and lowercases everything so Famly and Baby Connect entries generate identical hashes even when their casing or notes differ.
+
 ## 0.0.31
 - Fingerprints now use a canonical detail snippet for both Famly and Baby Connect events (stripping the first detail line and `[Sync]` suffixes), so solids/nappies you sync into Baby Connect match back to their Famly originals instead of appearing as outstanding items.
 

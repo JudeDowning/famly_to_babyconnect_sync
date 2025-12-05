@@ -95,23 +95,44 @@ def parse_time_to_utc(time_str: str) -> datetime:
 def _canonical_details_snippet(raw_text: str, raw_data: Dict[str, Any]) -> str:
     """
     Produce a normalised snippet that is consistent between Famly and Baby Connect.
-    We primarily rely on the detail lines, skipping the first element (which is
-    usually the time or summary) when multiple lines exist, and strip any `[Sync]`
-    markers that we append when creating entries in Baby Connect.
+    - Ignore leading detail lines that are purely timestamps/ranges
+    - Strip `[Sync]` markers and collapse whitespace
+    - Force lowercase so casing differences don't affect matching
     """
+
+    def _clean(value: str | None) -> str:
+        if not value:
+            return ""
+        cleaned = re.sub(r"\[sync\]", "", value, flags=re.IGNORECASE)
+        cleaned = re.sub(r"\s+", " ", cleaned).strip().lower()
+        return cleaned
+
     detail_lines = raw_data.get("detail_lines") if isinstance(raw_data, dict) else None
-    candidate = ""
+    normalized_lines: list[str] = []
     if isinstance(detail_lines, list):
-        cleaned = [line.strip() for line in detail_lines if line and line.strip()]
-        if len(cleaned) > 1:
-            cleaned = cleaned[1:]
-        candidate = " | ".join(cleaned).strip()
-    if not candidate:
-        note = (raw_data.get("note") or "").strip() if isinstance(raw_data, dict) else ""
-        candidate = note or (raw_text or "")
-    candidate = re.sub(r"\[sync\]", "", candidate, flags=re.IGNORECASE)
-    candidate = re.sub(r"\s+", " ", candidate).strip()
-    return candidate
+        for idx, line in enumerate(detail_lines):
+            if not line:
+                continue
+            trimmed = line.strip()
+            if idx == 0 and re.search(r"\d{1,2}:\d{2}", trimmed):
+                continue
+            cleaned = _clean(trimmed)
+            if cleaned:
+                normalized_lines.append(cleaned)
+
+    if normalized_lines:
+        return " | ".join(normalized_lines)
+
+    for fallback in (
+        raw_data.get("original_title") if isinstance(raw_data, dict) else "",
+        raw_data.get("note") if isinstance(raw_data, dict) else "",
+        raw_text,
+    ):
+        cleaned = _clean(fallback or "")
+        if cleaned:
+            return cleaned
+
+    return ""
 
 def _combine_date_with_time(
     base_dt: datetime,
