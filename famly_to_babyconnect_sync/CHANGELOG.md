@@ -8,6 +8,10 @@
 - Connection chips switch to a stacked layout on ≤640px screens so the service name, status, and “Last scrape” text each get their own line instead of being squashed horizontally.
 - Rebuilt the frontend bundle to ship the mobile layout tweak.
 
+## 0.0.20
+- Scrape progress overlay now fills in the Famly/Baby Connect counters as soon as the API response returns, so you still see how many entries were captured even when the scrape finishes too quickly for the polling loop to catch intermediate updates.
+- Rebuilt the frontend bundle to include the progress fix.
+
 ## 0.0.17
 - Status chips now reset to green after a successful scrape and show “Last scrape: DD/MM/YY HH:MM” by exposing the most recent scrape timestamp from the backend.
 - The `/api/status` endpoint now returns `last_scraped_at` for Famly and Baby Connect so the UI can render those timestamps.

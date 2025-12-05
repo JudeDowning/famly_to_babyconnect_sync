@@ -312,10 +312,12 @@ const App: React.FC = () => {
     const stopWatcher = startScrapeWatcher("famly");
     await runScrapeOperation(
       async () => {
-        await scrapeFamly(daysBack);
+        const count = await scrapeFamly(daysBack);
         setProgress((prev) => ({
           ...prev,
           currentStep: 1,
+          famlyProcessed: count,
+          famlyTotal: count,
         }));
       },
       () => markConnectionError("famly"),
@@ -343,10 +345,12 @@ const App: React.FC = () => {
     const stopWatcher = startScrapeWatcher("baby_connect");
     await runScrapeOperation(
       async () => {
-        await scrapeBabyConnect(daysBack);
+        const count = await scrapeBabyConnect(daysBack);
         setProgress((prev) => ({
           ...prev,
           currentStep: 1,
+          babyProcessed: count,
+          babyTotal: count,
         }));
       },
       () => markConnectionError("baby_connect"),
@@ -374,18 +378,22 @@ const App: React.FC = () => {
     const stopFamlyWatcher = startScrapeWatcher("famly");
     await runScrapeOperation(
       async () => {
-        await scrapeFamly(scrapeDaysBack);
+        const famlyCount = await scrapeFamly(scrapeDaysBack);
         setProgress((prev) => ({
           ...prev,
           currentStep: 1,
           label: "Scraping Baby Connect...",
+          famlyProcessed: famlyCount,
+          famlyTotal: famlyCount,
         }));
         stopFamlyWatcher();
         const stopBabyWatcher = startScrapeWatcher("baby_connect");
-        await scrapeBabyConnect(scrapeDaysBack);
+        const babyCount = await scrapeBabyConnect(scrapeDaysBack);
         setProgress((prev) => ({
           ...prev,
           currentStep: 2,
+          babyProcessed: babyCount,
+          babyTotal: babyCount,
         }));
         stopBabyWatcher();
       },
