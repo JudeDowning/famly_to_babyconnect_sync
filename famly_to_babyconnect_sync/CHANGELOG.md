@@ -1,38 +1,42 @@
 # Changelog
 
-## 0.0.18
-- Day column headers now use a shorter weekday (e.g. "Fri") and a reduced font size so the Famly/date/Baby Connect labels no longer overlap on 375×667 mobile layouts.
-- Rebuilt the frontend bundle to include the CSS/JS changes.
+## 0.0.24
+- Duplicate detection now looks at the explicit time tokens embedded in Famly detail lines, so solids/meals logged at 16:05 vs 15:50 are correctly highlighted even if their stored `start_time_utc` matches.
+- Rebuilt the frontend bundle with the improved detector.
 
-## 0.0.19
-- Connection chips switch to a stacked layout on ≤640px screens so the service name, status, and “Last scrape” text each get their own line instead of being squashed horizontally.
-- Rebuilt the frontend bundle to ship the mobile layout tweak.
+## 0.0.23
+- Highlight potential duplicate Famly entries (same content, same day, different times) with a yellow tile plus "Possible duplicate" badge, so you can spot them before syncing.
+- Ignore overlay now uses a denser hatch pattern for better visibility.
+- Rebuilt the frontend bundle with the duplicate detector and styling tweaks.
+
+## 0.0.22
+- Ignored Famly cards now show a hatched overlay across the entire tile so it�s obvious they�ll be skipped during syncs.
+- Rebuilt the frontend bundle to include the updated styling.
+
+## 0.0.21
+- Added an "Ignore" toggle beneath each Famly entry so you can mark duplicates directly in the comparison view; ignored rows gray out and are excluded from the "missing" counts.
+- Rebuilt the frontend bundle with the new controls.
 
 ## 0.0.20
 - Scrape progress overlay now fills in the Famly/Baby Connect counters as soon as the API response returns, so you still see how many entries were captured even when the scrape finishes too quickly for the polling loop to catch intermediate updates.
 - Rebuilt the frontend bundle to include the progress fix.
 
-## 0.0.21
-- Added an “Ignore” toggle beneath each Famly entry so you can mark duplicates directly in the comparison view; ignored rows gray out and are excluded from the “missing” counts.
-- Rebuilt the frontend bundle with the new controls.
+## 0.0.19
+- Connection chips switch to a stacked layout on =640px screens so the service name, status, and "Last scrape" text each get their own line instead of being squashed horizontally.
+- Rebuilt the frontend bundle to ship the mobile layout tweak.
 
-## 0.0.22
-- Ignored Famly cards now show a hatched overlay across the entire tile so it’s obvious they’ll be skipped during syncs.
-- Rebuilt the frontend bundle to include the updated styling.
-
-## 0.0.23
-- Highlight potential duplicate Famly entries (same content, same day, different times) with a yellow tile plus “Possible duplicate” badge, so you can spot them before syncing.
-- Ignore overlay now uses a denser hatch pattern for better visibility.
-- Rebuilt the frontend bundle with the duplicate detector and styling tweaks.
+## 0.0.18
+- Day column headers now use a shorter weekday (e.g. "Fri") and a reduced font size so the Famly/date/Baby Connect labels no longer overlap on 375�667 mobile layouts.
+- Rebuilt the frontend bundle to include the CSS/JS changes.
 
 ## 0.0.17
-- Status chips now reset to green after a successful scrape and show “Last scrape: DD/MM/YY HH:MM” by exposing the most recent scrape timestamp from the backend.
+- Status chips now reset to green after a successful scrape and show "Last scrape: DD/MM/YY HH:MM" by exposing the most recent scrape timestamp from the backend.
 - The `/api/status` endpoint now returns `last_scraped_at` for Famly and Baby Connect so the UI can render those timestamps.
 - Backend avoids unnecessary Baby Connect re-scrapes when a sync fails, and diaper dialog radio buttons are now forced via their label when hidden.
 - Rebuilt the frontend bundle with the new status UI.
 
 ## 0.0.16
-- Added a sync progress overlay that shows an “X of Y” counter for both single-entry pushes and Sync All so you can track Home Assistant automations while they run.
+- Added a sync progress overlay that shows an "X of Y" counter for both single-entry pushes and Sync All so you can track Home Assistant automations while they run.
 - Famly rows that fail to sync now remain highlighted with a warning arrow, making retries obvious in the comparison grid.
 - Frontend bundle rebuilt with the new progress/failure UI refinements.
 
@@ -68,8 +72,8 @@
 - Fixed residual mojibake in the progress overlay and rebuilt the frontend bundle.
 
 ## 0.0.6
-- Made the Famly child profile selector configurable via `FAMLY_CHILD_ID` and added a fallback that clicks the first child entry when the configured ID isn’t found. Scrape failures now log a clear runtime error instead of timing out silently.
-- Cleaned up the progress overlay text so it displays "Scraping …" without mojibake.
+- Made the Famly child profile selector configurable via `FAMLY_CHILD_ID` and added a fallback that clicks the first child entry when the configured ID isn�t found. Scrape failures now log a clear runtime error instead of timing out silently.
+- Cleaned up the progress overlay text so it displays "Scraping �" without mojibake.
 - Rebuilt the frontend bundle after the text fix.
 
 ## 0.0.5
@@ -83,7 +87,7 @@
 - Rebuilt the frontend bundle with the ingress-aware fetch logic.
 
 ## 0.0.3
-- Seed default Famly → Baby Connect event mappings (meals, nappy, sleep, sign in/out) so fresh installs have sensible sync starters.
+- Seed default Famly ? Baby Connect event mappings (meals, nappy, sleep, sign in/out) so fresh installs have sensible sync starters.
 
 ## 0.0.2
 - Improved Home Assistant compatibility: ingress-friendly frontend, persistent data paths, and Playwright-backed container image.

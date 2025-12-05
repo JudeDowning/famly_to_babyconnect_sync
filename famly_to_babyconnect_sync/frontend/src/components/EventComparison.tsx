@@ -262,6 +262,25 @@ const normalizeLineForDuplicate = (text: string) => {
   const { remaining } = stripTimePrefix(text);
   return (remaining || text).trim().toLowerCase();
 };
+const extractEntryTimeToken = (event: NormalisedEvent): string => {
+  const lines = Array.isArray(event.raw_data?.detail_lines)
+    ? event.raw_data!.detail_lines!
+    : [];
+  for (const line of lines) {
+    const match = line.match(/(\d{1,2}:\d{2}(?:\s*[AaPp][Mm])?)/);
+    if (match) {
+      return `${getDayIso(event)}T${to24Hour(match[1])}`;
+    }
+  }
+  try {
+    const date = new Date(event.start_time_utc);
+    const hours = date.getUTCHours().toString().padStart(2, "0");
+    const minutes = date.getUTCMinutes().toString().padStart(2, "0");
+    return `${getDayIso(event)}T${hours}:${minutes}`;
+  } catch {
+    return `${getDayIso(event)}T00:00`;
+  }
+};
 const duplicateKeyForEvent = (event: NormalisedEvent) => {
   const day = getDayIso(event);
   const type = (event.event_type || "").trim().toLowerCase();
@@ -396,11 +415,11 @@ export const EventComparison: React.FC<Props> = ({
     const matched = rows.filter((row) => row.famly && row.baby).length;
     return { famlyTotal, babyTotal, missing, matched };
   }, [famlyEvents, babyEvents, rows]);
-  const duplicateFamlyIds = useMemo(() => {
-    const keyToEvents = new Map<string, NormalisedEvent[]>();
-    rows.forEach((row) => {
-      if (!row.famly) return;
-      const key = duplicateKeyForEvent(row.famly);
+const duplicateFamlyIds = useMemo(() => {
+  const keyToEvents = new Map<string, NormalisedEvent[]>();
+  rows.forEach((row) => {
+    if (!row.famly) return;
+    const key = duplicateKeyForEvent(row.famly);
       if (!key) return;
       if (!keyToEvents.has(key)) {
         keyToEvents.set(key, []);
@@ -410,7 +429,7 @@ export const EventComparison: React.FC<Props> = ({
     const duplicates = new Set<number>();
     keyToEvents.forEach((events) => {
       if (events.length <= 1) return;
-      const uniqueTimes = new Set(events.map((ev) => ev.start_time_utc));
+      const uniqueTimes = new Set(events.map((ev) => extractEntryTimeToken(ev)));
       if (uniqueTimes.size <= 1) return;
       events.forEach((ev) => {
         if (typeof ev.id === "number") {
