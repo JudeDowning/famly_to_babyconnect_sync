@@ -12,6 +12,10 @@
 - Scrape progress overlay now fills in the Famly/Baby Connect counters as soon as the API response returns, so you still see how many entries were captured even when the scrape finishes too quickly for the polling loop to catch intermediate updates.
 - Rebuilt the frontend bundle to include the progress fix.
 
+## 0.0.21
+- Added an “Ignore” toggle beneath each Famly entry so you can mark duplicates directly in the comparison view; ignored rows gray out and are excluded from the “missing” counts.
+- Rebuilt the frontend bundle with the new controls.
+
 ## 0.0.17
 - Status chips now reset to green after a successful scrape and show “Last scrape: DD/MM/YY HH:MM” by exposing the most recent scrape timestamp from the backend.
 - The `/api/status` endpoint now returns `last_scraped_at` for Famly and Baby Connect so the UI can render those timestamps.

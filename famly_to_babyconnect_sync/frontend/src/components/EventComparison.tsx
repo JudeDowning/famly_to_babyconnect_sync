@@ -431,6 +431,8 @@ export const EventComparison: React.FC<Props> = ({
                 !!famlyEventId && syncingEventId === famlyEventId;
               const isFailed =
                 !!famlyEventId && failedEventIds.includes(famlyEventId);
+              const famlyIgnored = !!row.famly?.ignored;
+              const canToggleIgnore = !!famlyEventId && !!onToggleIgnore;
               const arrowDisabled =
                 !showArrow ||
                 isBulkSyncing ||
@@ -456,32 +458,47 @@ export const EventComparison: React.FC<Props> = ({
                   key={row.key}
                   className={`pair-row${
                     isMatched ? " pair-row--matched" : ""
-                  }${isFailed ? " pair-row--failed" : ""}`}
+                  }${isFailed ? " pair-row--failed" : ""}${
+                    famlyIgnored ? " pair-row--ignored" : ""
+                  }`}
                 >
                   <EventTile event={row.famly} label="Famly" />
-                  <button
-                    type="button"
-                    className={arrowClasses.join(" ")}
-                    disabled={arrowDisabled}
-                    onClick={() => {
-                      if (showArrow && famlyEventId) {
-                        onSyncEvent?.(famlyEventId);
+                  <div className="pair-row__actions">
+                    <button
+                      type="button"
+                      className={arrowClasses.join(" ")}
+                      disabled={arrowDisabled}
+                      onClick={() => {
+                        if (showArrow && famlyEventId) {
+                          onSyncEvent?.(famlyEventId);
+                        }
+                      }}
+                      aria-label={
+                        isFailed
+                          ? "Previous sync attempt failed"
+                          : isSyncingThis
+                          ? "Syncing entry"
+                          : showArrow
+                          ? "Create this Famly entry in Baby Connect"
+                          : isMatched
+                          ? "Entry already synced"
+                          : "No action"
                       }
-                    }}
-                    aria-label={
-                      isFailed
-                        ? "Previous sync attempt failed"
-                        : isSyncingThis
-                        ? "Syncing entry"
-                        : showArrow
-                        ? "Create this Famly entry in Baby Connect"
-                        : isMatched
-                        ? "Entry already synced"
-                        : "No action"
-                    }
-                  >
-                    {glyph}
-                  </button>
+                    >
+                      {glyph}
+                    </button>
+                    {canToggleIgnore && (
+                      <button
+                        type="button"
+                        className={`ignore-pill${famlyIgnored ? " ignore-pill--active" : ""}`}
+                        onClick={() =>
+                          famlyEventId && onToggleIgnore?.(famlyEventId, !famlyIgnored)
+                        }
+                      >
+                        {famlyIgnored ? "Ignored" : "Ignore"}
+                      </button>
+                    )}
+                  </div>
                   <EventTile event={row.baby} label="Baby Connect" />
                 </div>
               );
