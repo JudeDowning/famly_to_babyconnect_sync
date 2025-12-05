@@ -34,12 +34,14 @@ const App: React.FC = () => {
     email: null,
     status: "idle",
     lastConnectedAt: null,
+    lastScrapedAt: null,
   });
   const [bcStatus, setBcStatus] = useState<ConnectionStatus>({
     service: "baby_connect",
     email: null,
     status: "idle",
     lastConnectedAt: null,
+    lastScrapedAt: null,
   });
   const [famlyEvents, setFamlyEvents] = useState<NormalisedEvent[]>([]);
   const [bcEvents, setBcEvents] = useState<NormalisedEvent[]>([]);
@@ -90,6 +92,7 @@ const App: React.FC = () => {
       status: data.famly.has_credentials ? "ok" : "idle",
       message: undefined,
       lastConnectedAt: data.famly.last_connected_at,
+      lastScrapedAt: data.famly.last_scraped_at,
     });
 
     setBcStatus({
@@ -98,6 +101,7 @@ const App: React.FC = () => {
       status: data.baby_connect.has_credentials ? "ok" : "idle",
       message: undefined,
       lastConnectedAt: data.baby_connect.last_connected_at,
+      lastScrapedAt: data.baby_connect.last_scraped_at,
     });
   };
 
@@ -239,6 +243,7 @@ const App: React.FC = () => {
     try {
       await operation();
       await fetchEvents();
+      await fetchStatus();
     } catch (err) {
       console.error(err);
       onError?.();
@@ -443,6 +448,22 @@ const App: React.FC = () => {
     await fetchStatus();
   };
 
+  const formatDateTime = (iso?: string | null) => {
+    if (!iso) return "Never";
+    try {
+      const date = new Date(iso);
+      return date.toLocaleString(undefined, {
+        day: "2-digit",
+        month: "2-digit",
+        year: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } catch {
+      return "Never";
+    }
+  };
+
   return (
     <div className="app-shell">
       <div className="app-inner">
@@ -498,6 +519,9 @@ const App: React.FC = () => {
                   ? "Error"
                   : "Not connected"}
               </span>
+              <span className="connection-chip__meta">
+                Last scrape: {formatDateTime(famlyStatus.lastScrapedAt)}
+              </span>
             </div>
             <div className={`connection-chip connection-chip--${bcStatus.status}`}>
               <span className="connection-chip__label">Baby Connect</span>
@@ -507,6 +531,9 @@ const App: React.FC = () => {
                   : bcStatus.status === "error"
                   ? "Error"
                   : "Not connected"}
+              </span>
+              <span className="connection-chip__meta">
+                Last scrape: {formatDateTime(bcStatus.lastScrapedAt)}
               </span>
             </div>
           </div>

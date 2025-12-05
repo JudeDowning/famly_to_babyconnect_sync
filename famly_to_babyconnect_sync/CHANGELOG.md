@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.17
+- Status chips now reset to green after a successful scrape and show “Last scrape: DD/MM/YY HH:MM” by exposing the most recent scrape timestamp from the backend.
+- The `/api/status` endpoint now returns `last_scraped_at` for Famly and Baby Connect so the UI can render those timestamps.
+- Backend avoids unnecessary Baby Connect re-scrapes when a sync fails, and diaper dialog radio buttons are now forced via their label when hidden.
+- Rebuilt the frontend bundle with the new status UI.
+
 ## 0.0.16
 - Added a sync progress overlay that shows an “X of Y” counter for both single-entry pushes and Sync All so you can track Home Assistant automations while they run.
 - Famly rows that fail to sync now remain highlighted with a warning arrow, making retries obvious in the comparison grid.

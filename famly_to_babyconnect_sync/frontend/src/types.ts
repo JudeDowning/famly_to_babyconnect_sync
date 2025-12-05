@@ -8,6 +8,7 @@ export interface ConnectionStatus {
   status: ServiceStatus;
   message?: string;
   lastConnectedAt?: string | null;
+  lastScrapedAt?: string | null;
 }
 
 export interface NormalisedEvent {
