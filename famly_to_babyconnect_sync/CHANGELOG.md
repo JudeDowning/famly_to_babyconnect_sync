@@ -20,6 +20,11 @@
 - Ignored Famly cards now show a hatched overlay across the entire tile so it’s obvious they’ll be skipped during syncs.
 - Rebuilt the frontend bundle to include the updated styling.
 
+## 0.0.23
+- Highlight potential duplicate Famly entries (same content, same day, different times) with a yellow tile plus “Possible duplicate” badge, so you can spot them before syncing.
+- Ignore overlay now uses a denser hatch pattern for better visibility.
+- Rebuilt the frontend bundle with the duplicate detector and styling tweaks.
+
 ## 0.0.17
 - Status chips now reset to green after a successful scrape and show “Last scrape: DD/MM/YY HH:MM” by exposing the most recent scrape timestamp from the backend.
 - The `/api/status` endpoint now returns `last_scraped_at` for Famly and Baby Connect so the UI can render those timestamps.

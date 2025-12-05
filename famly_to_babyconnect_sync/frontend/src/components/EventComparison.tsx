@@ -258,11 +258,33 @@ const stripTimePrefix = (
   const remainder = trimmed.slice(match[0].length).replace(/^[:\s-]+/, "");
   return { remaining: remainder || null, range };
 };
+const normalizeLineForDuplicate = (text: string) => {
+  const { remaining } = stripTimePrefix(text);
+  return (remaining || text).trim().toLowerCase();
+};
+const duplicateKeyForEvent = (event: NormalisedEvent) => {
+  const day = getDayIso(event);
+  const type = (event.event_type || "").trim().toLowerCase();
+  if (!day || !type) return null;
+  const lines = Array.isArray(event.raw_data?.detail_lines)
+    ? event.raw_data!.detail_lines!
+    : [];
+  const normalizedLines = lines
+    .map((line) => normalizeLineForDuplicate(line))
+    .filter(Boolean);
+  const signature =
+    normalizedLines.length > 0
+      ? normalizedLines.join("|")
+      : (event.summary || event.raw_text || "").trim().toLowerCase();
+  if (!signature) return null;
+  return `${day}|${type}|${signature}`;
+};
 const EventTile: React.FC<{
   event?: NormalisedEvent;
   label: string;
   ignored?: boolean;
-}> = ({ event, label, ignored = false }) => {
+  duplicate?: boolean;
+}> = ({ event, label, ignored = false, duplicate = false }) => {
   if (!event) {
     return <div className="event-card event-card--placeholder">No entry</div>;
   }
@@ -326,6 +348,9 @@ const EventTile: React.FC<{
   if (ignored) {
     cardClasses.push("event-card--ignored");
   }
+  if (duplicate) {
+    cardClasses.push("event-card--duplicate");
+  }
   return (
     <div className={cardClasses.join(" ")}>
       <div className="event-card__meta">
@@ -335,6 +360,7 @@ const EventTile: React.FC<{
         </p>
         <div className="event-card__meta-icons">
           {ignored && <span className="event-card__badge">Ignored</span>}
+          {duplicate && <span className="event-card__badge event-card__badge--warning">Possible duplicate</span>}
           {icon && <img src={icon} className="event-card__icon" alt="" />}
         </div>
       </div>
@@ -370,6 +396,30 @@ export const EventComparison: React.FC<Props> = ({
     const matched = rows.filter((row) => row.famly && row.baby).length;
     return { famlyTotal, babyTotal, missing, matched };
   }, [famlyEvents, babyEvents, rows]);
+  const duplicateFamlyIds = useMemo(() => {
+    const keyToEvents = new Map<string, NormalisedEvent[]>();
+    rows.forEach((row) => {
+      if (!row.famly) return;
+      const key = duplicateKeyForEvent(row.famly);
+      if (!key) return;
+      if (!keyToEvents.has(key)) {
+        keyToEvents.set(key, []);
+      }
+      keyToEvents.get(key)!.push(row.famly);
+    });
+    const duplicates = new Set<number>();
+    keyToEvents.forEach((events) => {
+      if (events.length <= 1) return;
+      const uniqueTimes = new Set(events.map((ev) => ev.start_time_utc));
+      if (uniqueTimes.size <= 1) return;
+      events.forEach((ev) => {
+        if (typeof ev.id === "number") {
+          duplicates.add(ev.id);
+        }
+      });
+    });
+    return duplicates;
+  }, [rows]);
   const filteredRows = showMissingOnly
     ? rows.filter((row) => row.famly && !row.baby && !row.famly?.ignored)
     : rows;
@@ -432,6 +482,8 @@ export const EventComparison: React.FC<Props> = ({
               const isFailed =
                 !!famlyEventId && failedEventIds.includes(famlyEventId);
               const famlyIgnored = !!row.famly?.ignored;
+              const famlyDuplicate =
+                !!row.famly?.id && duplicateFamlyIds.has(row.famly.id);
               const canToggleIgnore = !!famlyEventId && !!onToggleIgnore;
               const arrowDisabled =
                 !showArrow ||
@@ -462,7 +514,12 @@ export const EventComparison: React.FC<Props> = ({
                     famlyIgnored ? " pair-row--ignored" : ""
                   }`}
                 >
-                  <EventTile event={row.famly} label="Famly" />
+                  <EventTile
+                    event={row.famly}
+                    label="Famly"
+                    ignored={famlyIgnored}
+                    duplicate={famlyDuplicate}
+                  />
                   <div className="pair-row__actions">
                     <button
                       type="button"
