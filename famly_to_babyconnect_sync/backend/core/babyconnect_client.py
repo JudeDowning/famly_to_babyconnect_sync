@@ -514,7 +514,10 @@ class BabyConnectClient:
             dialog.wait_for(state="hidden", timeout=10000)
         except PlaywrightTimeoutError:
             logger.warning("BabyConnect: diaper dialog did not hide after save, continuing")
-        dialog.wait_for(state="detached")
+        try:
+            dialog.wait_for(state="detached", timeout=5000)
+        except PlaywrightTimeoutError:
+            logger.warning("BabyConnect: diaper dialog still attached, continuing anyway")
         logger.info("BabyConnect: diaper entry saved")
 
     def _create_sleep_entry(self, page: Page, entry: Dict[str, Any]) -> None:
@@ -614,7 +617,10 @@ class BabyConnectClient:
             dialog.wait_for(state="hidden", timeout=10000)
         except PlaywrightTimeoutError:
             logger.warning("BabyConnect: message dialog did not hide after save, continuing anyway")
-        dialog.wait_for(state="detached")
+        try:
+            dialog.wait_for(state="detached", timeout=5000)
+        except PlaywrightTimeoutError:
+            logger.warning("BabyConnect: message dialog still attached, continuing anyway")
         logger.info("BabyConnect: message entry saved")
 
 
