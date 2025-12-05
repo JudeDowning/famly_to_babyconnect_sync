@@ -163,6 +163,9 @@ def normalise_famly_event(raw: RawFamlyEvent) -> Dict[str, Any]:
     """
     timestamp_source = raw.event_datetime_iso or raw.time_str
     start_time_utc = parse_time_to_utc(timestamp_source)
+    if start_time_utc is None:
+        logger.warning("normalise_famly_event: missing start time, defaulting to now")
+        start_time_utc = datetime.now(timezone.utc)
     details_snippet = raw.raw_text or ""
     fingerprint = build_fingerprint(
         child_name=raw.child_name,
@@ -198,6 +201,9 @@ def normalise_babyconnect_event(raw: RawBabyConnectEvent) -> Dict[str, Any]:
     """
     timestamp_source = raw.event_datetime_iso or raw.time_str
     start_time_utc = parse_time_to_utc(timestamp_source)
+    if start_time_utc is None:
+        logger.warning("normalise_babyconnect_event: missing start time, defaulting to now")
+        start_time_utc = datetime.now(timezone.utc)
     details_snippet = raw.raw_text or ""
     fingerprint = build_fingerprint(
         child_name=raw.child_name,
