@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.0.32
+- Front-end pairing now keys off the same canonical detail snippet used by the backend (ignoring the first detail line and `[Sync]` markers), so Famly entries you pushed into Baby Connect immediately show up as matched instead of lingering in the "Missing" list.
+
 ## 0.0.31
 - Fingerprints now use a canonical detail snippet for both Famly and Baby Connect events (stripping the first detail line and `[Sync]` suffixes), so solids/nappies you sync into Baby Connect match back to their Famly originals instead of appearing as outstanding items.
 

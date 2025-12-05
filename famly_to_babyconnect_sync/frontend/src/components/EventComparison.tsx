@@ -193,8 +193,10 @@ const buildPairs = (
   const makeKey = (ev: NormalisedEvent) => {
     const day = getDayIso(ev);
     const time = new Date(ev.start_time_utc).toISOString().slice(0, 16);
-    const child = ev.child_name.toLowerCase();
-    return `${day}-${ev.event_type}-${time}-${child}`;
+    const child = (ev.child_name || "").toLowerCase();
+    const type = (ev.event_type || "").trim().toLowerCase();
+    const detail = canonicalDetailSignature(ev);
+    return `${day}-${type}-${time}-${child}-${detail}`;
   };
   const addEvent = (ev: NormalisedEvent, key: string, which: "famly" | "baby") => {
     if (!map.has(key)) {
@@ -274,7 +276,26 @@ const stripTimePrefix = (
 const normalizeLineForDuplicate = (text: string) => {
   const { remaining } = stripTimePrefix(text);
   const base = (remaining || text).toLowerCase();
-  return base.replace(/\([^)]*\)/g, "").replace(/\s+/g, " ").trim();
+  return base
+    .replace(/\[sync\]/gi, "")
+    .replace(/\([^)]*\)/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+};
+
+const canonicalDetailSignature = (event: NormalisedEvent) => {
+  const detailLines = Array.isArray(event.raw_data?.detail_lines)
+    ? [...event.raw_data!.detail_lines!]
+    : [];
+  const payloadLines =
+    detailLines.length > 1 ? detailLines.slice(1) : detailLines;
+  const normalizedLines = payloadLines
+    .map((line) => normalizeLineForDuplicate(line))
+    .filter(Boolean);
+  const fallback = normalizeLineForDuplicate(
+    (event.summary || event.raw_text || "").trim(),
+  );
+  return (normalizedLines.join("|") || fallback || "").trim();
 };
 const extractEntryTimeToken = (event: NormalisedEvent): string => {
   const lines = Array.isArray(event.raw_data?.detail_lines)
@@ -299,16 +320,7 @@ const duplicateKeyForEvent = (event: NormalisedEvent) => {
   const day = getDayIso(event);
   const type = (event.event_type || "").trim().toLowerCase();
   if (!day || !type) return null;
-  const lines = Array.isArray(event.raw_data?.detail_lines)
-    ? event.raw_data!.detail_lines!
-    : [];
-  const normalizedLines = lines
-    .map((line) => normalizeLineForDuplicate(line))
-    .filter(Boolean);
-  const signature =
-    normalizedLines.length > 0
-      ? normalizedLines.join("|")
-      : (event.summary || event.raw_text || "").trim().toLowerCase();
+  const signature = canonicalDetailSignature(event);
   if (!signature) return null;
   return `${day}|${type}|${signature}`;
 };
