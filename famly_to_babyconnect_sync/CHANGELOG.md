@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.39
+- Sleep fingerprints now canonicalise the `HH:MM - HH:MM` range (converted to 24-hour format) on both Famly and Baby Connect, so overnight and daytime sleeps line up even when the textual summary differs (e.g. “1h12m” vs “1h13m”).
+- Child-name headlines are trimmed instead of discarded, ensuring notes like “slept …” still contribute to non-sleep events while sleeps rely purely on the canonical range to avoid duration drift.
+- Bumped the add-on image so HA users receive the improved matching logic.
+
 ## 0.0.38
 - Baby Connect entry writers now copy the exact Famly detail payload (e.g. BM | Very loose, meal menus, sleep summaries) into the note field before appending [Sync], and the scraper records those lines so canonical snippets are identical on both sides.
 - Diaper detail payloads retain the first HH:MM ... row after stripping the timestamp, so type information like BM survives hashing.
@@ -141,3 +146,6 @@
 ## 0.0.2
 - Improved Home Assistant compatibility: ingress-friendly frontend, persistent data paths, and Playwright-backed container image.
 
+## 0.0.40
+- Sign-in/out “Message” events now fall back to their timestamp when no other detail text remains after canonicalisation, ensuring Famly’s bare “08:19” entries match the Baby Connect “Famly – Signed in …” rows.
+- Rebuilt the add-on image so HA users receive the improved fingerprint logic.

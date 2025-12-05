@@ -97,6 +97,7 @@ def _canonical_details_snippet(
     raw_data: Dict[str, Any],
     *,
     child_name: str | None = None,
+    event_type: str | None = None,
 ) -> str:
     """
     Produce a normalised snippet that is consistent between Famly and Baby Connect.
@@ -127,29 +128,77 @@ def _canonical_details_snippet(
                 return remainder
         return token
 
+    def _normalise_time_token(token: str) -> str | None:
+        t_match = re.match(
+            r"^\s*(\d{1,2}):(\d{2})\s*(am|pm)?\s*$",
+            token,
+            flags=re.IGNORECASE,
+        )
+        if not t_match:
+            return None
+        hour = int(t_match.group(1))
+        minute = int(t_match.group(2))
+        meridiem = t_match.group(3).lower() if t_match.group(3) else None
+        if meridiem == "pm" and hour < 12:
+            hour += 12
+        if meridiem == "am" and hour == 12:
+            hour = 0
+        return f"{hour:02d}:{minute:02d}"
+
+    def _canonical_time_range(token: str) -> str | None:
+        match = TIME_RANGE_PATTERN.search(token)
+        if not match:
+            return None
+        start = _normalise_time_token(match.group(1))
+        end = _normalise_time_token(match.group(2))
+        if start and end:
+            return f"{start}-{end}"
+        return None
+
+    seen_ranges: set[str] = set()
+    first_time_only: str | None = None
     if isinstance(detail_lines, list):
         for idx, line in enumerate(detail_lines):
             if not line:
                 continue
             trimmed = line.strip()
+            range_token = _canonical_time_range(trimmed)
+            if range_token and range_token not in seen_ranges:
+                normalized_lines.append(range_token)
+                seen_ranges.add(range_token)
             if idx == 0 and re.search(r"\d{1,2}:\d{2}", trimmed):
+                original_trimmed = trimmed
                 trimmed = _strip_leading_time(trimmed)
                 if not trimmed:
+                    first_time_only = _normalise_time_token(original_trimmed)
                     continue
             lowered = trimmed.lower()
             if child_lower and lowered.startswith(child_lower):
-                continue
+                trimmed = trimmed[len(child_name) :].lstrip(" -:\u2013").strip() if child_name else trimmed
+                if not trimmed:
+                    continue
             if lowered.startswith("famly -"):
                 continue
             cleaned = _clean(trimmed)
             if cleaned:
                 normalized_lines.append(cleaned)
 
+    note_val = raw_data.get("note") if isinstance(raw_data, dict) else ""
+    if note_val:
+        cleaned = _clean(note_val)
+        if cleaned:
+            normalized_lines.append(cleaned)
+
     if normalized_lines:
-        return " | ".join(normalized_lines)
+        if event_type and "sleep" in event_type.lower():
+            return seen_ranges.pop() if seen_ranges else normalized_lines[0]
+        return " | ".join(dict.fromkeys(normalized_lines))
+
+    if not normalized_lines and first_time_only and event_type and "message" in event_type.lower():
+        normalized_lines.append(first_time_only)
 
     for fallback in (
-        raw_data.get("note") if isinstance(raw_data, dict) else "",
+        note_val,
         raw_data.get("original_title") if isinstance(raw_data, dict) else "",
         raw_text,
     ):
@@ -249,6 +298,7 @@ def normalise_famly_event(raw: RawFamlyEvent) -> Dict[str, Any]:
         raw.raw_text or "",
         raw_data,
         child_name=raw.child_name,
+        event_type=raw.event_type,
     )
     fingerprint = build_fingerprint(
         child_name=raw.child_name,
@@ -291,6 +341,7 @@ def normalise_babyconnect_event(raw: RawBabyConnectEvent) -> Dict[str, Any]:
         raw.raw_text or "",
         raw_data,
         child_name=raw.child_name,
+        event_type=raw.event_type,
     )
     fingerprint = build_fingerprint(
         child_name=raw.child_name,
