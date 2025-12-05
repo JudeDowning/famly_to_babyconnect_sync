@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta, date
 import logging
 import re
 from hashlib import sha256
 from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
+TIME_RANGE_PATTERN = re.compile(
+    r"(\d{1,2}:\d{2}\s*(?:am|pm)?)\s*(?:-|to)\s*(\d{1,2}:\d{2}\s*(?:am|pm)?)",
+    re.IGNORECASE,
+)
 
 @dataclass
 class RawFamlyEvent:
@@ -49,6 +53,62 @@ def parse_time_to_utc(time_str: str) -> datetime:
     if not time_str:
         logger.warning("parse_time_to_utc: empty time string, defaulting to now")
         return datetime.now(timezone.utc)
+
+def _combine_date_with_time(
+    base_dt: datetime,
+    time_token: str,
+    day_iso: str | None = None,
+) -> datetime | None:
+    """
+    Combine a parsed time token (e.g. '7:23AM') with either the provided
+    day_iso ('2025-12-04') or the date portion of base_dt.
+    """
+    match = re.match(r"^\s*(\d{1,2}):(\d{2})\s*(am|pm)?\s*$", time_token, flags=re.IGNORECASE)
+    if not match:
+        return None
+    hour = int(match.group(1))
+    minute = int(match.group(2))
+    meridiem = match.group(3).lower() if match.group(3) else None
+    if meridiem == "pm" and hour < 12:
+        hour += 12
+    if meridiem == "am" and hour == 12:
+        hour = 0
+
+    result = base_dt.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    if day_iso:
+        try:
+            day_val = date.fromisoformat(day_iso)
+            result = result.replace(year=day_val.year, month=day_val.month, day=day_val.day)
+        except ValueError:
+            pass
+    return result
+
+def _infer_end_time_from_detail(
+    raw_data: Dict[str, Any],
+    fallback_text: str,
+    start_time_utc: datetime,
+) -> datetime | None:
+    detail_lines = raw_data.get("detail_lines") if isinstance(raw_data, dict) else None
+    candidate = None
+    if isinstance(detail_lines, list):
+        for line in detail_lines:
+            match = TIME_RANGE_PATTERN.search(line)
+            if match:
+                candidate = match.group(2)
+                break
+    if not candidate and fallback_text:
+        match = TIME_RANGE_PATTERN.search(fallback_text)
+        if match:
+            candidate = match.group(2)
+    if not candidate:
+        return None
+    day_iso = raw_data.get("day_date_iso") if isinstance(raw_data, dict) else None
+    end_dt = _combine_date_with_time(start_time_utc, candidate, day_iso)
+    if not end_dt:
+        return None
+    if end_dt <= start_time_utc:
+        end_dt = end_dt + timedelta(days=1)
+    return end_dt
     cleaned = re.sub(r"\s+by\s+.*$", "", time_str.strip(), flags=re.IGNORECASE)
     try:
         return datetime.fromisoformat(cleaned)
@@ -153,6 +213,10 @@ def normalise_babyconnect_event(raw: RawBabyConnectEvent) -> Dict[str, Any]:
             end_time_utc = datetime.fromisoformat(end_iso)
         except ValueError:
             logger.debug("normalise_babyconnect_event: invalid end iso %s", end_iso)
+    elif "sleep" in (raw.event_type or "").lower():
+        inferred = _infer_end_time_from_detail(raw_data, raw.raw_text or "", start_time_utc)
+        if inferred:
+            end_time_utc = inferred
 
     return {
         "source_system": "baby_connect",
