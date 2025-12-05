@@ -106,17 +106,6 @@ def get_events(source_system: str, limit: int = 100) -> List[Event]:
             .all()
         )
 
-def _event_match_key(event: Event) -> str:
-    details = event.details_json if isinstance(event.details_json, dict) else {}
-    raw_data = details.get("raw_data") if isinstance(details, dict) else {}
-    day_iso = raw_data.get("day_date_iso")
-    if not day_iso:
-        day_iso = event.start_time_utc.date().isoformat()
-    start_minute = event.start_time_utc.strftime("%Y-%m-%dT%H:%M")
-    event_type = (event.event_type or "").strip().lower()
-    child_name = (event.child_name or "").strip().lower()
-    return f"{day_iso}|{event_type}|{start_minute}|{child_name}"
-
 def get_missing_famly_event_ids() -> List[int]:
     """
     Compute Famly event IDs that are not present in Baby Connect.
@@ -152,15 +141,21 @@ def get_missing_famly_event_ids() -> List[int]:
         )
         ignored_fingerprints = _get_ignored_fingerprints(session)
 
-    baby_keys = {_event_match_key(ev) for ev in baby_events}
+    baby_fingerprints = {
+        ev.fingerprint
+        for ev in baby_events
+        if isinstance(ev.fingerprint, str) and ev.fingerprint.strip()
+    }
     missing_ids: List[int] = []
     for ev in famly_events:
+        if not ev.fingerprint:
+            continue
         if ev.fingerprint in ignored_fingerprints:
             continue
         canonical_type = _canonical_sync_type(ev)
         if canonical_type and canonical_type not in allowed_types:
             continue
-        if _event_match_key(ev) not in baby_keys:
+        if ev.fingerprint not in baby_fingerprints:
             missing_ids.append(ev.id)
     return missing_ids
 
