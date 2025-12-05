@@ -1,14 +1,13 @@
 import React, { useMemo } from "react";
 import { NormalisedEvent } from "../types";
 import { assetUrl } from "../api";
-
 type DateFormat = "weekday-mon-dd" | "weekday-dd-mon";
-
 interface Props {
   famlyEvents: NormalisedEvent[];
   babyEvents: NormalisedEvent[];
   dateFormat: DateFormat;
   onSyncEvent?: (eventId: number) => void;
+  onToggleIgnore?: (eventId: number, ignored: boolean) => void;
   syncingEventId?: number | null;
   isBulkSyncing?: boolean;
   showMissingOnly?: boolean;
@@ -16,7 +15,6 @@ interface Props {
   controlsSlot?: React.ReactNode;
   failedEventIds?: number[];
 }
-
 interface PairedRow {
   key: string;
   famly?: NormalisedEvent;
@@ -25,9 +23,7 @@ interface PairedRow {
   dayIso: string;
   timestamp: number;
 }
-
 const icon = (path: string) => assetUrl(path);
-
 const defaultIconMap: Record<string, string> = {
   nappy: icon("/icons/diapers_v2.svg"),
   diaper: icon("/icons/diapers_v2.svg"),
@@ -40,8 +36,8 @@ const defaultIconMap: Record<string, string> = {
   temperature: icon("/icons/temperature_v2.svg"),
   bath: icon("/icons/bath_v2.svg"),
   message: icon("/icons/msg_v2.svg"),
+  potty: icon("/icons/potty_v2.svg"),
 };
-
 const famlyIconMap: Record<string, string> = {
   nappy: icon("/icons/famly_diaper.svg"),
   "nappy change": icon("/icons/famly_diaper.svg"),
@@ -57,9 +53,7 @@ const famlyIconMap: Record<string, string> = {
   ill: icon("/icons/famly_sick.svg"),
   sick: icon("/icons/famly_sick.svg"),
 };
-
 const SIGN_EVENT_TYPES = ["signed in", "sign in", "signed out", "sign out"];
-
 const inferFamlyEventType = (event?: NormalisedEvent): string | undefined => {
   if (!event) return undefined;
   const base = (event.event_type || "").toLowerCase();
@@ -75,7 +69,6 @@ const inferFamlyEventType = (event?: NormalisedEvent): string | undefined => {
   }
   return base || undefined;
 };
-
 const getIcon = (
   type: string | undefined | null,
   sourceLabel: string,
@@ -90,7 +83,6 @@ const getIcon = (
   }
   return defaultIconMap[lower] || null;
 };
-
 const famlyDisplayMap: Record<string, string> = {
   solid: "Meals",
   meals: "Meals",
@@ -103,7 +95,6 @@ const famlyDisplayMap: Record<string, string> = {
   "signed out": "Signed out",
   "sign out": "Signed out",
 };
-
 const babyDisplayMap: Record<string, string> = {
   nappy: "Diaper",
   diaper: "Diaper",
@@ -118,7 +109,6 @@ const babyDisplayMap: Record<string, string> = {
   message: "Message",
   potty: "Potty",
 };
-
 const getEventTitle = (type: string, sourceLabel: string) => {
   const lower = type.toLowerCase();
   if (sourceLabel === "Famly") {
@@ -129,12 +119,9 @@ const getEventTitle = (type: string, sourceLabel: string) => {
   }
   return type;
 };
-
 const toDateKey = (iso: string) => new Date(iso).toISOString().slice(0, 10);
-
 const getDayIso = (ev: NormalisedEvent) =>
   ev.raw_data?.day_date_iso || toDateKey(ev.start_time_utc);
-
 const getSortTimestamp = (ev: NormalisedEvent) => {
   const start = new Date(ev.start_time_utc);
   let useEnd = false;
@@ -149,7 +136,6 @@ const getSortTimestamp = (ev: NormalisedEvent) => {
   }
   return start.getTime();
 };
-
 const formatDayDisplay = (
   iso: string,
   fallback: string,
@@ -157,14 +143,13 @@ const formatDayDisplay = (
 ) => {
   if (!iso) return fallback;
   const date = new Date(`${iso}T00:00:00`);
-  const weekday = date.toLocaleDateString(undefined, { weekday: "long" });
+  const weekday = date.toLocaleDateString(undefined, { weekday: "short" });
   const month = date.toLocaleDateString(undefined, { month: "short" });
   const day = date.toLocaleDateString(undefined, { day: "2-digit" });
   return format === "weekday-dd-mon"
     ? `${weekday} ${day} ${month}`
     : `${weekday} ${month} ${day}`;
 };
-
 const getEntrySplits = (event: NormalisedEvent) => {
   const detailLines = Array.isArray(event.raw_data?.detail_lines)
     ? event.raw_data!.detail_lines!
@@ -185,23 +170,19 @@ const getEntrySplits = (event: NormalisedEvent) => {
   }
   return splits;
 };
-
 const applyDegreeSymbol = (text: string) =>
   text.replace(/(\d+(?:\.\d+)?)\s*C\b/gi, "$1\u00B0C");
-
 const buildPairs = (
   famlyEvents: NormalisedEvent[],
   babyEvents: NormalisedEvent[],
 ): PairedRow[] => {
   const map = new Map<string, PairedRow>();
-
   const makeKey = (ev: NormalisedEvent) => {
     const day = getDayIso(ev);
     const time = new Date(ev.start_time_utc).toISOString().slice(0, 16);
     const child = ev.child_name.toLowerCase();
     return `${day}-${ev.event_type}-${time}-${child}`;
   };
-
   const addEvent = (ev: NormalisedEvent, key: string, which: "famly" | "baby") => {
     if (!map.has(key)) {
     map.set(key, {
@@ -213,7 +194,6 @@ const buildPairs = (
     }
     map.get(key)![which] = ev;
   };
-
   famlyEvents.forEach((ev) => {
     const splits = getEntrySplits(ev);
     splits.forEach((entry, idx) => {
@@ -231,17 +211,14 @@ const buildPairs = (
     });
   });
   babyEvents.forEach((ev) => addEvent(ev, makeKey(ev), "baby"));
-
   return Array.from(map.values()).sort((a, b) => b.timestamp - a.timestamp);
 };
-
 const formatClock = (date: Date) =>
   date.toLocaleTimeString(undefined, {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
   });
-
 const to24Hour = (token: string) => {
   const trimmed = token.trim();
   const match = trimmed.match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/i);
@@ -253,7 +230,6 @@ const to24Hour = (token: string) => {
   if (meridiem === "am" && hour === 12) hour = 0;
   return `${hour.toString().padStart(2, "0")}:${minute}`;
 };
-
 const formatRange24 = (range: string) => {
   const parts = range
     .split(/(?:-|to)/i)
@@ -267,7 +243,6 @@ const formatRange24 = (range: string) => {
   }
   return range.trim();
 };
-
 const stripTimePrefix = (
   text: string,
 ): { remaining: string | null; range: string | null } => {
@@ -283,8 +258,11 @@ const stripTimePrefix = (
   const remainder = trimmed.slice(match[0].length).replace(/^[:\s-]+/, "");
   return { remaining: remainder || null, range };
 };
-
-const EventTile: React.FC<{ event?: NormalisedEvent; label: string }> = ({ event, label }) => {
+const EventTile: React.FC<{
+  event?: NormalisedEvent;
+  label: string;
+  ignored?: boolean;
+}> = ({ event, label, ignored = false }) => {
   if (!event) {
     return <div className="event-card event-card--placeholder">No entry</div>;
   }
@@ -297,7 +275,6 @@ const EventTile: React.FC<{ event?: NormalisedEvent; label: string }> = ({ event
   const detailLines = Array.isArray(event.raw_data?.detail_lines)
     ? [...event.raw_data!.detail_lines!]
     : [];
-
   let displayTime = formatClock(
     new Date(
       event.source_system === "baby_connect" && event.end_time_utc
@@ -316,11 +293,9 @@ const EventTile: React.FC<{ event?: NormalisedEvent; label: string }> = ({ event
       cleanedEntries.push(remaining);
     }
   });
-
   const isSignEvent = SIGN_EVENT_TYPES.includes(
     (effectiveType || "").toLowerCase(),
   );
-
   const entries =
     cleanedEntries.length > 0
       ? cleanedEntries.map((line, idx) => ({
@@ -340,7 +315,6 @@ const EventTile: React.FC<{ event?: NormalisedEvent; label: string }> = ({ event
             ),
           },
         ];
-
   const noteText = event.raw_data?.note?.trim() || null;
   const normalizeValue = (value: string | null) =>
     value ? value.replace(/\s+/g, " ").trim().toLowerCase() : null;
@@ -348,15 +322,21 @@ const EventTile: React.FC<{ event?: NormalisedEvent; label: string }> = ({ event
     noteText &&
     entries.some((entry) => normalizeValue(entry.text) === normalizeValue(applyDegreeSymbol(noteText)));
   const noteToShow = noteMatchesEntry ? null : noteText ? applyDegreeSymbol(noteText) : null;
-
+  const cardClasses = ["event-card"];
+  if (ignored) {
+    cardClasses.push("event-card--ignored");
+  }
   return (
-    <div className="event-card">
+    <div className={cardClasses.join(" ")}>
       <div className="event-card__meta">
         <p className="event-card__title-line">
           <span className="event-card__title">{displayTitle}</span>
           <span className="event-card__time">{displayTime}</span>
         </p>
-        {icon && <img src={icon} className="event-card__icon" alt="" />}
+        <div className="event-card__meta-icons">
+          {ignored && <span className="event-card__badge">Ignored</span>}
+          {icon && <img src={icon} className="event-card__icon" alt="" />}
+        </div>
       </div>
       <ul className="event-card__list">
         {entries.map((entry) => (
@@ -369,12 +349,12 @@ const EventTile: React.FC<{ event?: NormalisedEvent; label: string }> = ({ event
     </div>
   );
 };
-
 export const EventComparison: React.FC<Props> = ({
   famlyEvents,
   babyEvents,
   dateFormat,
   onSyncEvent,
+  onToggleIgnore,
   syncingEventId = null,
   isBulkSyncing = false,
   showMissingOnly = false,
@@ -383,27 +363,24 @@ export const EventComparison: React.FC<Props> = ({
   failedEventIds = [],
 }) => {
   const rows = useMemo(() => buildPairs(famlyEvents, babyEvents), [famlyEvents, babyEvents]);
-
   const stats = useMemo(() => {
     const famlyTotal = famlyEvents.length;
     const babyTotal = babyEvents.length;
-    const missing = rows.filter((row) => row.famly && !row.baby).length;
+    const missing = rows.filter((row) => row.famly && !row.baby && !row.famly?.ignored).length;
     const matched = rows.filter((row) => row.famly && row.baby).length;
     return { famlyTotal, babyTotal, missing, matched };
   }, [famlyEvents, babyEvents, rows]);
-
-  const filteredRows = showMissingOnly ? rows.filter((row) => row.famly && !row.baby) : rows;
-
+  const filteredRows = showMissingOnly
+    ? rows.filter((row) => row.famly && !row.baby && !row.famly?.ignored)
+    : rows;
   const grouped = filteredRows.reduce<Record<string, PairedRow[]>>((acc, row) => {
     acc[row.dayIso] = acc[row.dayIso] || [];
     acc[row.dayIso].push(row);
     return acc;
   }, {});
-
   const orderedGroups = Object.entries(grouped).sort(
     (a, b) => (b[1][0]?.timestamp || 0) - (a[1][0]?.timestamp || 0),
   );
-
   return (
     <>
       <div className="comparison-summary">
@@ -509,11 +486,10 @@ export const EventComparison: React.FC<Props> = ({
                 </div>
               );
             })}
-
-
           </section>
         );
       })}
     </>
   );
 };
+

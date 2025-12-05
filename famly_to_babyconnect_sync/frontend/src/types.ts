@@ -19,6 +19,7 @@ export interface NormalisedEvent {
   start_time_utc: string;
   end_time_utc?: string | null;
   matched: boolean;
+  ignored?: boolean;
   summary?: string | null;
   raw_text?: string | null;
   raw_data?: {

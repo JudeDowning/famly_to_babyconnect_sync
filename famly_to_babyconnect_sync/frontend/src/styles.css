@@ -620,7 +620,7 @@ body {
 
 .day-columns-header__day {
   justify-self: center;
-  font-size: 16px;
+  font-size: 14px;
   letter-spacing: 0.05em;
   color: #f8fafc;
   text-transform: none;
@@ -678,6 +678,20 @@ body {
   justify-content: space-between;
   align-items: center;
 }
+.event-card__meta-icons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.event-card__badge {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: rgba(248, 250, 252, 0.85);
+}
 
 .event-card__title-line {
   display: flex;
@@ -731,6 +745,9 @@ body {
   align-items: center;
   justify-content: center;
   color: rgba(255, 255, 255, 0.4);
+}
+.event-card--ignored {
+  opacity: 0.65;
 }
 
 .arrow-pill {
@@ -997,3 +1014,25 @@ body {
 }
 
 
+.pair-row--ignored .event-card:not(.event-card--placeholder) {
+  opacity: 0.75;
+}
+.pair-row__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.ignore-pill {
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(248, 250, 252, 0.85);
+  font-size: 12px;
+  padding: 4px 10px;
+}
+.ignore-pill--active {
+  border-color: rgba(74, 222, 128, 0.5);
+  background: rgba(34, 197, 94, 0.15);
+  color: #bbf7d0;
+}

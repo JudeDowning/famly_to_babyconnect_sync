@@ -1,4 +1,4 @@
-import React, { Dispatch, SetStateAction, useEffect, useState } from "react";
+import React from "react";
 
 interface Props {
   progress: {
@@ -7,50 +7,19 @@ interface Props {
     label: string;
     currentStep: number;
     totalSteps: number;
-    famlyTarget: number;
-    babyTarget: number;
+    famlyProcessed: number;
+    famlyTotal: number;
+    babyProcessed: number;
+    babyTotal: number;
     syncCurrent: number;
     syncTotal: number;
   };
 }
 
 export const ProgressOverlay: React.FC<Props> = ({ progress }) => {
-  const [famlyDisplay, setFamlyDisplay] = useState(0);
-  const [babyDisplay, setBabyDisplay] = useState(0);
-  const isSyncMode = progress.mode === "sync";
-
-  useEffect(() => {
-    if (!progress.visible || progress.mode !== "scrape") return;
-    setFamlyDisplay(0);
-    setBabyDisplay(0);
-  }, [progress.visible, progress.label, progress.mode]);
-
-  const animateTo = (
-    target: number,
-    setFn: Dispatch<SetStateAction<number>>,
-  ) => {
-    setFn((current) => {
-      if (current === target) return current;
-      const diff = target - current;
-      const step = Math.max(1, Math.round(diff / 5));
-      const next = current + step;
-      if ((diff > 0 && next > target) || (diff < 0 && next < target)) {
-        return target;
-      }
-      return next;
-    });
-  };
-
-  useEffect(() => {
-    if (!progress.visible || progress.mode !== "scrape") return;
-    const interval = setInterval(() => {
-      animateTo(progress.famlyTarget, setFamlyDisplay);
-      animateTo(progress.babyTarget, setBabyDisplay);
-    }, 100);
-    return () => clearInterval(interval);
-  }, [progress.visible, progress.famlyTarget, progress.babyTarget, progress.mode]);
-
   if (!progress.visible) return null;
+
+  const isSyncMode = progress.mode === "sync";
 
   const percentage = isSyncMode
     ? progress.syncTotal > 0
@@ -89,17 +58,19 @@ export const ProgressOverlay: React.FC<Props> = ({ progress }) => {
           </div>
         ) : (
           <div className="progress-stats">
-            <div>
-              <p>Famly entries</p>
-              <strong>{famlyDisplay}</strong>
-            </div>
-            <div>
-              <p>Baby Connect entries</p>
-              <strong>{babyDisplay}</strong>
-            </div>
+          <div>
+            <p>Famly entries</p>
+            <strong>{progress.famlyProcessed}</strong>
+            {progress.famlyTotal ? <span> / {progress.famlyTotal}</span> : null}
           </div>
-        )}
-      </div>
+          <div>
+            <p>Baby Connect entries</p>
+            <strong>{progress.babyProcessed}</strong>
+            {progress.babyTotal ? <span> / {progress.babyTotal}</span> : null}
+          </div>
+        </div>
+      )}
     </div>
+  </div>
   );
 };

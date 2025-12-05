@@ -57,3 +57,14 @@ class SyncLink(Base):
 
     famly_event: Mapped["Event"] = relationship("Event", foreign_keys=[famly_event_id])
     baby_event: Mapped["Event"] = relationship("Event", foreign_keys=[baby_event_id])
+
+
+class IgnoredEvent(Base):
+    """
+    Stores fingerprints for Famly events the user chose to ignore.
+    """
+    __tablename__ = "ignored_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    fingerprint: Mapped[str] = mapped_column(String(128), unique=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

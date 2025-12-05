@@ -10,6 +10,8 @@ import {
   syncAllMissingEvents,
   fetchSyncPreferences,
   apiUrl,
+  fetchScrapeProgress,
+  setEventIgnored,
 } from "./api";
 
 type DateFormat = "weekday-mon-dd" | "weekday-dd-mon";
@@ -22,8 +24,10 @@ type ProgressState = {
   label: string;
   currentStep: number;
   totalSteps: number;
-  famlyTarget: number;
-  babyTarget: number;
+  famlyProcessed: number;
+  famlyTotal: number;
+  babyProcessed: number;
+  babyTotal: number;
   syncCurrent: number;
   syncTotal: number;
 };
@@ -57,8 +61,10 @@ const App: React.FC = () => {
     label: "",
     currentStep: 0,
     totalSteps: 0,
-    famlyTarget: 0,
-    babyTarget: 0,
+    famlyProcessed: 0,
+    famlyTotal: 0,
+    babyProcessed: 0,
+    babyTotal: 0,
     syncCurrent: 0,
     syncTotal: 0,
   });
@@ -169,33 +175,37 @@ const App: React.FC = () => {
     return typeof data.scraped_count === "number" ? data.scraped_count : 0;
   };
 
-  const startProgressPolling = (service: ServiceName, baseline: number) => {
+  const startScrapeWatcher = (service: ServiceName) => {
     let stopped = false;
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
-    const source = service === "famly" ? "famly" : "baby_connect";
 
     const poll = async () => {
       if (stopped) return;
       try {
-        const res = await fetch(apiUrl(`/api/events?source=${source}`));
-        if (!res.ok) {
-          throw new Error("poll failed");
-        }
-        const data = await res.json();
-        const count = Array.isArray(data) ? data.length : 0;
-        const diff = Math.max(0, count - baseline);
+        const snapshot = await fetchScrapeProgress();
+        const data = snapshot?.[service];
         setProgress((prev) => {
           if (!prev.visible) return prev;
+          if (prev.mode !== "scrape") return prev;
+          if (!data) return prev;
           if (service === "famly") {
-            return { ...prev, famlyTarget: diff };
+            return {
+              ...prev,
+              famlyProcessed: data.processed ?? prev.famlyProcessed,
+              famlyTotal: data.total ?? prev.famlyTotal,
+            };
           }
-          return { ...prev, babyTarget: diff };
+          return {
+            ...prev,
+            babyProcessed: data.processed ?? prev.babyProcessed,
+            babyTotal: data.total ?? prev.babyTotal,
+          };
         });
       } catch (error) {
-        console.debug("Progress polling error", error);
+        console.debug("Progress watch error", error);
       } finally {
         if (!stopped) {
-          timeoutId = setTimeout(poll, 700);
+          timeoutId = setTimeout(poll, 400);
         }
       }
     };
@@ -260,8 +270,10 @@ const App: React.FC = () => {
       label: label || (safeTotal === 1 ? "Syncing entry..." : "Syncing entries..."),
       currentStep: 0,
       totalSteps: safeTotal,
-      famlyTarget: 0,
-      babyTarget: 0,
+      famlyProcessed: 0,
+      famlyTotal: 0,
+      babyProcessed: 0,
+      babyTotal: 0,
       syncCurrent: 0,
       syncTotal: safeTotal,
     });
@@ -290,24 +302,25 @@ const App: React.FC = () => {
       label: "Scraping Famly...",
       currentStep: 0,
       totalSteps: 1,
-      famlyTarget: 0,
-      babyTarget: 0,
+      famlyProcessed: 0,
+      famlyTotal: 0,
+      babyProcessed: 0,
+      babyTotal: 0,
       syncCurrent: 0,
       syncTotal: 0,
     });
-    const stopFamlyPoll = startProgressPolling("famly", famlyEvents.length);
+    const stopWatcher = startScrapeWatcher("famly");
     await runScrapeOperation(
       async () => {
-        const count = await scrapeFamly(daysBack);
+        await scrapeFamly(daysBack);
         setProgress((prev) => ({
           ...prev,
           currentStep: 1,
-          famlyTarget: count,
         }));
       },
       () => markConnectionError("famly"),
     );
-    stopFamlyPoll();
+    stopWatcher();
     await new Promise((resolve) => setTimeout(resolve, 500));
     setProgress((prev) => ({ ...prev, visible: false, mode: null }));
   };
@@ -320,24 +333,25 @@ const App: React.FC = () => {
       label: "Scraping Baby Connect...",
       currentStep: 0,
       totalSteps: 1,
-      famlyTarget: 0,
-      babyTarget: 0,
+      famlyProcessed: 0,
+      famlyTotal: 0,
+      babyProcessed: 0,
+      babyTotal: 0,
       syncCurrent: 0,
       syncTotal: 0,
     });
-    const stopBabyPoll = startProgressPolling("baby_connect", bcEvents.length);
+    const stopWatcher = startScrapeWatcher("baby_connect");
     await runScrapeOperation(
       async () => {
-        const count = await scrapeBabyConnect(daysBack);
+        await scrapeBabyConnect(daysBack);
         setProgress((prev) => ({
           ...prev,
           currentStep: 1,
-          babyTarget: count,
         }));
       },
       () => markConnectionError("baby_connect"),
     );
-    stopBabyPoll();
+    stopWatcher();
     await new Promise((resolve) => setTimeout(resolve, 500));
     setProgress((prev) => ({ ...prev, visible: false, mode: null }));
   };
@@ -350,30 +364,30 @@ const App: React.FC = () => {
       label: "Scraping Famly...",
       currentStep: 0,
       totalSteps: 2,
-      famlyTarget: 0,
-      babyTarget: 0,
+      famlyProcessed: 0,
+      famlyTotal: 0,
+      babyProcessed: 0,
+      babyTotal: 0,
       syncCurrent: 0,
       syncTotal: 0,
     });
-    const stopFamlyPoll = startProgressPolling("famly", famlyEvents.length);
+    const stopFamlyWatcher = startScrapeWatcher("famly");
     await runScrapeOperation(
       async () => {
-        const famlyCount = await scrapeFamly(scrapeDaysBack);
+        await scrapeFamly(scrapeDaysBack);
         setProgress((prev) => ({
           ...prev,
           currentStep: 1,
           label: "Scraping Baby Connect...",
-          famlyTarget: famlyCount,
         }));
-        stopFamlyPoll();
-        const stopBabyPoll = startProgressPolling("baby_connect", bcEvents.length);
-        const babyCount = await scrapeBabyConnect(scrapeDaysBack);
+        stopFamlyWatcher();
+        const stopBabyWatcher = startScrapeWatcher("baby_connect");
+        await scrapeBabyConnect(scrapeDaysBack);
         setProgress((prev) => ({
           ...prev,
           currentStep: 2,
-          babyTarget: babyCount,
         }));
-        stopBabyPoll();
+        stopBabyWatcher();
       },
       () => {
         markConnectionError("famly");
@@ -427,6 +441,19 @@ const App: React.FC = () => {
       finishSyncProgress(0, "Sync failed");
     } finally {
       setSyncingEventId(null);
+    }
+  };
+
+  const handleToggleIgnore = async (eventId: number, ignored: boolean) => {
+    try {
+      await setEventIgnored(eventId, ignored);
+      setFamlyEvents((prev) =>
+        prev.map((ev) => (ev.id === eventId ? { ...ev, ignored } : ev)),
+      );
+      await loadMissingEventIds();
+    } catch (err) {
+      console.error(err);
+      alert(err instanceof Error ? err.message : "Failed to update ignore flag");
     }
   };
 
@@ -586,6 +613,7 @@ const App: React.FC = () => {
             showMissingOnly={showMissingOnly}
             onToggleMissing={() => setShowMissingOnly((prev) => !prev)}
             failedEventIds={failedEventIds}
+            onToggleIgnore={handleToggleIgnore}
           />
         </main>
       </div>

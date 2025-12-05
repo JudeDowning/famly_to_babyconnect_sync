@@ -13,15 +13,22 @@ High-level orchestration for:
 
 from __future__ import annotations
 
-from typing import Dict, Any, List, Iterable
+from typing import Dict, Any, List, Iterable, Set
 from datetime import datetime
 
 from .storage import get_session
-from .models import Event, Credential, SyncLink
+from .models import Event, Credential, SyncLink, IgnoredEvent
 from .normalisation import normalise_famly_event, RawFamlyEvent, RawBabyConnectEvent, normalise_babyconnect_event
 from .famly_client import FamlyClient
 from .babyconnect_client import BabyConnectClient
 from .settings_store import get_sync_preferences, SYNC_INCLUDE_DEFAULT
+from .progress_state import (
+    start_progress,
+    increment_progress,
+    finish_progress,
+    fail_progress,
+    clear_progress,
+)
 
 def test_service_credentials(service_name: str) -> None:
     cred = get_credentials(service_name)
@@ -45,6 +52,13 @@ def get_credentials(service_name: str) -> Credential | None:
             .first()
         )
 
+def _get_ignored_fingerprints(session) -> Set[str]:
+    return {
+        row[0]
+        for row in session.query(IgnoredEvent.fingerprint).all()
+    }
+
+
 def scrape_famly_and_store(days_back: int = 0) -> List[Event]:
     """
     Scrape events from Famly, normalise them, and save to the database.
@@ -58,14 +72,24 @@ def scrape_famly_and_store(days_back: int = 0) -> List[Event]:
     normalised: List[Dict[str, Any]] = [normalise_famly_event(r) for r in raw_events]
 
     stored_events: List[Event] = []
-    with get_session() as session:
-        session.query(Event).filter(Event.source_system == "famly").delete()
-        session.flush()
-        for ev in normalised:
-            new_ev = Event(**ev)
-            session.add(new_ev)
-            session.flush()  # assign id
-            stored_events.append(new_ev)
+    start_progress("famly", len(normalised))
+    try:
+        with get_session() as session:
+            session.query(Event).filter(Event.source_system == "famly").delete()
+            session.flush()
+            for ev in normalised:
+                new_ev = Event(**ev)
+                session.add(new_ev)
+                session.flush()  # assign id
+                stored_events.append(new_ev)
+                increment_progress("famly")
+    except Exception as exc:
+        fail_progress("famly", str(exc))
+        clear_progress("famly")
+        raise
+    else:
+        finish_progress("famly")
+        clear_progress("famly")
 
     return stored_events
 
@@ -126,10 +150,13 @@ def get_missing_famly_event_ids() -> List[int]:
             .filter(Event.source_system == "baby_connect")
             .all()
         )
+        ignored_fingerprints = _get_ignored_fingerprints(session)
 
     baby_keys = {_event_match_key(ev) for ev in baby_events}
     missing_ids: List[int] = []
     for ev in famly_events:
+        if ev.fingerprint in ignored_fingerprints:
+            continue
         canonical_type = _canonical_sync_type(ev)
         if canonical_type and canonical_type not in allowed_types:
             continue
@@ -195,25 +222,35 @@ def scrape_babyconnect_and_store(days_back: int = 0) -> List[Event]:
 
     stored_events: List[Event] = []
     seen_fingerprints: set[str] = set()
-    with get_session() as session:
-        session.query(Event).filter(Event.source_system == "baby_connect").delete()
-        session.flush()
-        for ev in normalised:
-            if allowed_dates:
-                raw_data = (ev.get("details_json") or {}).get("raw_data") or {}
-                day_iso = raw_data.get("day_date_iso")
-                if not day_iso and ev.get("start_time_utc"):
-                    day_iso = ev["start_time_utc"].date().isoformat()
-                if day_iso not in allowed_dates:
-                    continue
-            fp = ev["fingerprint"]
-            if fp in seen_fingerprints:
-                continue
-            seen_fingerprints.add(fp)
-            new_ev = Event(**ev)
-            session.add(new_ev)
+    start_progress("baby_connect", len(normalised))
+    try:
+        with get_session() as session:
+            session.query(Event).filter(Event.source_system == "baby_connect").delete()
             session.flush()
-            stored_events.append(new_ev)
+            for ev in normalised:
+                if allowed_dates:
+                    raw_data = (ev.get("details_json") or {}).get("raw_data") or {}
+                    day_iso = raw_data.get("day_date_iso")
+                    if not day_iso and ev.get("start_time_utc"):
+                        day_iso = ev["start_time_utc"].date().isoformat()
+                    if day_iso not in allowed_dates:
+                        continue
+                fp = ev["fingerprint"]
+                if fp in seen_fingerprints:
+                    continue
+                seen_fingerprints.add(fp)
+                new_ev = Event(**ev)
+                session.add(new_ev)
+                session.flush()
+                stored_events.append(new_ev)
+                increment_progress("baby_connect")
+    except Exception as exc:
+        fail_progress("baby_connect", str(exc))
+        clear_progress("baby_connect")
+        raise
+    else:
+        finish_progress("baby_connect")
+        clear_progress("baby_connect")
 
     return stored_events
 
@@ -302,16 +339,37 @@ def create_babyconnect_entries(event_ids: List[int]) -> Dict[str, Any]:
     client = BabyConnectClient(email=cred.email, password=cred.password_encrypted)
     client.create_entries(payloads)
 
-    # Refresh local cache so UI can reflect newly created entries immediately.
-    try:
-        recent_days = _recent_famly_dates(30)
-        refresh_days_back = max(0, len(recent_days) - 1)
-        refreshed = scrape_babyconnect_and_store(days_back=refresh_days_back)
-        refreshed_count = len(refreshed)
-    except Exception:
-        refreshed_count = 0
+    refreshed_count = 0
+    if payloads:
+        try:
+            recent_days = _recent_famly_dates(30)
+            refresh_days_back = max(0, len(recent_days) - 1)
+            refreshed = scrape_babyconnect_and_store(days_back=refresh_days_back)
+            refreshed_count = len(refreshed)
+        except Exception:
+            refreshed_count = 0
 
     return {"status": "ok", "created": len(payloads), "refreshed": refreshed_count}
+
+
+def set_event_ignore_flag(event_id: int, ignored: bool) -> Dict[str, Any]:
+    with get_session() as session:
+        event = session.get(Event, event_id)
+        if not event or event.source_system != "famly":
+            raise ValueError("Only Famly events can be ignored")
+        existing = (
+            session.query(IgnoredEvent)
+            .filter(IgnoredEvent.fingerprint == event.fingerprint)
+            .first()
+        )
+        if ignored:
+            if not existing:
+                session.add(IgnoredEvent(fingerprint=event.fingerprint))
+        else:
+            if existing:
+                session.delete(existing)
+        session.flush()
+    return {"event_id": event_id, "ignored": ignored}
 def sync_to_babyconnect() -> Dict[str, Any]:
     """
     Placeholder for the main sync operation.

@@ -9,12 +9,21 @@ from ..core.sync_service import (
     create_babyconnect_entries as create_entries_service,
     get_missing_famly_event_ids,
 )
+from ..core.progress_state import get_progress_snapshot
 
 router = APIRouter(tags=["sync"])
 logger = logging.getLogger(__name__)
 
 class CreateEntriesPayload(BaseModel):
     event_ids: list[int]
+
+
+@router.get("/scrape/progress")
+def scrape_progress():
+    """
+    Return the latest scrape progress snapshot for Famly/Baby Connect.
+    """
+    return get_progress_snapshot()
 
 @router.post("/scrape/famly")
 def scrape_famly(days_back: int = Query(0, ge=0, le=7, description="Number of previous days to include")):

@@ -169,3 +169,25 @@ export async function fetchDebugEvents(source: ServiceName): Promise<any> {
   }
   return res.json();
 }
+
+export async function fetchScrapeProgress(): Promise<
+  Record<string, { service: string; total: number; processed: number }>
+> {
+  const res = await fetch(apiUrl("/api/scrape/progress"));
+  if (!res.ok) {
+    throw new Error("Failed to load scrape progress");
+  }
+  return res.json();
+}
+
+export async function setEventIgnored(eventId: number, ignored: boolean): Promise<void> {
+  const res = await fetch(apiUrl(`/api/events/${eventId}/ignore`), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ignored }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body?.detail || "Failed to update ignore state");
+  }
+}
