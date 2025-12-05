@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.0.31
+- Fingerprints now use a canonical detail snippet for both Famly and Baby Connect events (stripping the first detail line and `[Sync]` suffixes), so solids/nappies you sync into Baby Connect match back to their Famly originals instead of appearing as outstanding items.
+
 ## 0.0.30
 - Restored proper ISO timestamp parsing when normalising Famly/Baby Connect events so `start_time_utc` is derived from the scraped `event_datetime_iso` instead of silently defaulting to the current time, fixing the regression that caused scrapes to fail with `"NoneType has no attribute 'replace'"` errors.
 

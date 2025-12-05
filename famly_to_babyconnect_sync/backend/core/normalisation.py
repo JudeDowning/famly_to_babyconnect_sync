@@ -91,6 +91,28 @@ def parse_time_to_utc(time_str: str) -> datetime:
 
     raise ValueError(f"parse_time_to_utc: unable to parse '{time_str}'")
 
+
+def _canonical_details_snippet(raw_text: str, raw_data: Dict[str, Any]) -> str:
+    """
+    Produce a normalised snippet that is consistent between Famly and Baby Connect.
+    We primarily rely on the detail lines, skipping the first element (which is
+    usually the time or summary) when multiple lines exist, and strip any `[Sync]`
+    markers that we append when creating entries in Baby Connect.
+    """
+    detail_lines = raw_data.get("detail_lines") if isinstance(raw_data, dict) else None
+    candidate = ""
+    if isinstance(detail_lines, list):
+        cleaned = [line.strip() for line in detail_lines if line and line.strip()]
+        if len(cleaned) > 1:
+            cleaned = cleaned[1:]
+        candidate = " | ".join(cleaned).strip()
+    if not candidate:
+        note = (raw_data.get("note") or "").strip() if isinstance(raw_data, dict) else ""
+        candidate = note or (raw_text or "")
+    candidate = re.sub(r"\[sync\]", "", candidate, flags=re.IGNORECASE)
+    candidate = re.sub(r"\s+", " ", candidate).strip()
+    return candidate
+
 def _combine_date_with_time(
     base_dt: datetime,
     time_token: str,
@@ -176,7 +198,8 @@ def normalise_famly_event(raw: RawFamlyEvent) -> Dict[str, Any]:
     if start_time_utc is None:
         logger.warning("normalise_famly_event: missing start time, defaulting to now")
         start_time_utc = datetime.now(timezone.utc)
-    details_snippet = raw.raw_text or ""
+    raw_data = raw.raw_data or {}
+    details_snippet = _canonical_details_snippet(raw.raw_text or "", raw_data)
     fingerprint = build_fingerprint(
         child_name=raw.child_name,
         event_type=raw.event_type,
@@ -184,7 +207,6 @@ def normalise_famly_event(raw: RawFamlyEvent) -> Dict[str, Any]:
         details_snippet=details_snippet,
     )
     end_time_utc = None
-    raw_data = raw.raw_data or {}
     end_iso = raw_data.get("end_event_datetime_iso")
     if end_iso:
         try:
@@ -214,7 +236,8 @@ def normalise_babyconnect_event(raw: RawBabyConnectEvent) -> Dict[str, Any]:
     if start_time_utc is None:
         logger.warning("normalise_babyconnect_event: missing start time, defaulting to now")
         start_time_utc = datetime.now(timezone.utc)
-    details_snippet = raw.raw_text or ""
+    raw_data = raw.raw_data or {}
+    details_snippet = _canonical_details_snippet(raw.raw_text or "", raw_data)
     fingerprint = build_fingerprint(
         child_name=raw.child_name,
         event_type=raw.event_type,
@@ -222,7 +245,6 @@ def normalise_babyconnect_event(raw: RawBabyConnectEvent) -> Dict[str, Any]:
         details_snippet=details_snippet,
     )
     end_time_utc = None
-    raw_data = raw.raw_data or {}
     end_iso = raw_data.get("end_event_datetime_iso")
     if end_iso:
         try:
