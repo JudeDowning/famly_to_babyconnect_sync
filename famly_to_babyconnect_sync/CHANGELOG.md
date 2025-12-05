@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.0.38
+- Baby Connect entry writers now copy the exact Famly detail payload (e.g. BM | Very loose, meal menus, sleep summaries) into the note field before appending [Sync], and the scraper records those lines so canonical snippets are identical on both sides.
+- Diaper detail payloads retain the first HH:MM ... row after stripping the timestamp, so type information like BM survives hashing.
+- Rebuilt the add-on image with the updated backend logic.
+
 ## 0.0.36
 - `/api/debug/events` (and the Settings → Debug viewer) now include each event's `fingerprint`, making it easier to compare Famly vs Baby Connect rows when troubleshooting matching issues.
 
@@ -135,3 +140,4 @@
 
 ## 0.0.2
 - Improved Home Assistant compatibility: ingress-friendly frontend, persistent data paths, and Playwright-backed container image.
+

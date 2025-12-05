@@ -483,9 +483,18 @@ class BabyConnectClient:
         for idx, line in enumerate(detail_lines):
             if not line:
                 continue
-            if idx == 0 and re.search(r"\d{1,2}:\d{2}", line):
+            text = line.strip()
+            if idx == 0 and re.search(r"\d{1,2}:\d{2}", text):
+                stripped = re.sub(
+                    r"^\s*\d{1,2}:\d{2}\s*(?:am|pm)?\s*[:\-]?\s*",
+                    "",
+                    text,
+                    flags=re.IGNORECASE,
+                ).strip()
+                if stripped:
+                    payload.append(stripped)
                 continue
-            payload.append(line.strip())
+            payload.append(text)
         return payload
 
     def _note_body_from_entry(self, entry: Dict[str, Any]) -> str | None:
@@ -536,8 +545,9 @@ class BabyConnectClient:
         self._fill_sleep_end_from_detail(dialog, entry)
 
         self._ensure_note_visible(dialog)
-        dialog.locator("#notetxt").fill("")
-        dialog.locator("#notetxt").type(self._append_sync_marker(self._note_body_from_entry(entry)))
+        note_body = self._note_body_from_entry(entry)
+        note_text = self._append_sync_marker(note_body)
+        dialog.locator("#notetxt").fill(note_text)
 
         dialog.locator(".defaultDlgButtonSave").click()
         try:
@@ -606,23 +616,12 @@ class BabyConnectClient:
         if reaction:
             dialog.locator(f"#reaction-{reaction}").check()
 
-        note_source = (
-            entry.get("raw_data", {}).get("detail_lines")
-            if entry.get("raw_data")
-            else None
-        )
-        if isinstance(note_source, list) and len(note_source) > 1:
-            note = " - ".join(note_source[1:])
-        else:
-            note = (
-                entry.get("note")
-                or entry.get("summary")
-                or entry.get("raw_text")
-                or ""
-            )
+        note_body = self._note_body_from_entry(entry)
+        if not note_body:
+            note_body = entry.get("note") or entry.get("summary") or entry.get("raw_text")
 
         self._ensure_note_visible(dialog)
-        dialog.locator("#notetxt").fill(self._append_sync_marker(note or None))
+        dialog.locator("#notetxt").fill(self._append_sync_marker(note_body))
 
         dialog.locator(".defaultDlgButtonSave").click()
         try:
@@ -641,7 +640,13 @@ class BabyConnectClient:
         self._fill_date_field(dialog, entry)
         self._fill_time_fields(dialog, entry)
 
-        message = entry.get("note") or entry.get("summary") or entry.get("raw_text") or entry.get("message")
+        message = (
+            entry.get("message")
+            or entry.get("note")
+            or self._note_body_from_entry(entry)
+            or entry.get("summary")
+            or entry.get("raw_text")
+        )
         dialog.locator("#txt").fill(self._append_sync_marker(message))
         dialog.locator(".defaultDlgButtonSave").click()
         try:
@@ -887,19 +892,54 @@ class BabyConnectClient:
         note_text: str,
         display_range: str | None,
     ) -> List[str]:
-        seen = set()
+        seen: set[str] = set()
         lines: List[str] = []
 
         def add_line(value: str | None):
             if not value:
                 return
             cleaned = value.strip()
-            if not cleaned or cleaned in seen:
+            if not cleaned:
                 return
-            seen.add(cleaned)
+            normalized = cleaned.lower()
+            if normalized in seen:
+                return
+            seen.add(normalized)
             lines.append(cleaned)
-        if event_type == "sleep" and display_range:
-            add_line(display_range)
-        add_line(title_text)
-        add_line(note_text)
+
+        def add_note_lines() -> bool:
+            if not note_text:
+                return False
+            note_clean = re.sub(r"\[sync\]", "", note_text, flags=re.IGNORECASE).strip()
+            if not note_clean:
+                return False
+            added = False
+            for part in re.split(r"\s*\|\s*", note_clean):
+                segment = part.strip()
+                if segment:
+                    add_line(segment)
+                    added = True
+            return added
+
+        etype = (event_type or "").lower()
+        if etype == "sleep":
+            if display_range:
+                add_line(display_range)
+            if not add_note_lines():
+                add_line(title_text)
+        elif etype in {"nappy", "diaper"}:
+            if not add_note_lines():
+                add_line(title_text)
+        elif etype in {"solid", "meal", "food", "bottle", "temperature", "medicine", "potty"}:
+            if not add_note_lines():
+                add_line(title_text)
+        elif etype in {"message", "note"}:
+            if not add_note_lines():
+                add_line(title_text)
+        else:
+            if display_range:
+                add_line(display_range)
+            if not add_note_lines():
+                add_line(title_text)
+
         return lines

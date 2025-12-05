@@ -115,14 +115,28 @@ def _canonical_details_snippet(
     child_lower = child_name.strip().lower() if child_name else None
     detail_lines = raw_data.get("detail_lines") if isinstance(raw_data, dict) else None
     normalized_lines: list[str] = []
+    def _strip_leading_time(token: str) -> str:
+        match = re.match(
+            r"^\s*\d{1,2}:\d{2}\s*(?:am|pm)?\s*[:\-]?\s*(.*)$",
+            token,
+            flags=re.IGNORECASE,
+        )
+        if match:
+            remainder = match.group(1).strip()
+            if remainder:
+                return remainder
+        return token
+
     if isinstance(detail_lines, list):
         for idx, line in enumerate(detail_lines):
             if not line:
                 continue
             trimmed = line.strip()
-            lowered = trimmed.lower()
             if idx == 0 and re.search(r"\d{1,2}:\d{2}", trimmed):
-                continue
+                trimmed = _strip_leading_time(trimmed)
+                if not trimmed:
+                    continue
+            lowered = trimmed.lower()
             if child_lower and lowered.startswith(child_lower):
                 continue
             if lowered.startswith("famly -"):
