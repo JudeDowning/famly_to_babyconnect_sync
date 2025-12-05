@@ -499,9 +499,19 @@ class BabyConnectClient:
 
     def _note_body_from_entry(self, entry: Dict[str, Any]) -> str | None:
         payload = self._detail_payload_lines(entry)
+        event_type = (entry.get("event_type") or "").lower()
         if payload:
-            return " | ".join(payload)
+            if event_type == "sleep":
+                payload_body: list[str] = []
+            elif event_type in {"nappy", "diaper", "solid", "meal", "food"} and len(payload) > 1:
+                payload_body = payload[1:]
+            else:
+                payload_body = payload
+            if payload_body:
+                return " | ".join(payload_body)
         raw_data = entry.get("raw_data") or {}
+        if event_type == "sleep":
+            return None
         for candidate in (
             raw_data.get("original_title"),
             raw_data.get("note"),

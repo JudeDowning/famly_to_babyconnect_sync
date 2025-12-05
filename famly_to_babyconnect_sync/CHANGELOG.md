@@ -149,3 +149,7 @@
 ## 0.0.40
 - Sign-in/out “Message” events now fall back to their timestamp when no other detail text remains after canonicalisation, ensuring Famly’s bare “08:19” entries match the Baby Connect “Famly – Signed in …” rows.
 - Rebuilt the add-on image so HA users receive the improved fingerprint logic.
+## 0.0.41
+- Baby Connect sync now trims the first detail token (time/type) when populating diaper and meal notes, so only the descriptive portion plus `[Sync]` is stored.
+- Sleep notes are explicitly forced to just `[Sync]`, matching the user requirement.
+- Bumped add-on version so HA picks up the improved note formatting.
