@@ -450,6 +450,14 @@ body {
   :root {
     --day-header-offset: 84px;
   }
+  .connection-chips {
+    grid-template-columns: 1fr;
+  }
+  .connection-chip {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
   .day-section {
     padding: 14px;
   }
