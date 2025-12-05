@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.0.36
+- `/api/debug/events` (and the Settings → Debug viewer) now include each event's `fingerprint`, making it easier to compare Famly vs Baby Connect rows when troubleshooting matching issues.
+
 ## 0.0.32
 - Front-end pairing now keys off the same canonical detail snippet used by the backend (ignoring the first detail line and `[Sync]` markers), so Famly entries you pushed into Baby Connect immediately show up as matched instead of lingering in the "Missing" list.
 

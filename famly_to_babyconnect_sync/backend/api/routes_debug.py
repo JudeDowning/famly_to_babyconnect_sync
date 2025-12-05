@@ -12,6 +12,7 @@ def _serialize_event(event: Event) -> dict:
         "source_system": event.source_system,
         "child_name": event.child_name,
         "event_type": event.event_type,
+        "fingerprint": event.fingerprint,
         "start_time_utc": event.start_time_utc.isoformat(),
         "end_time_utc": event.end_time_utc.isoformat() if event.end_time_utc else None,
         "details_json": event.details_json,
