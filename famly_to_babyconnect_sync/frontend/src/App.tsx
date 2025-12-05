@@ -310,21 +310,27 @@ const App: React.FC = () => {
       syncTotal: 0,
     });
     const stopWatcher = startScrapeWatcher("famly");
-    await runScrapeOperation(
-      async () => {
-        const count = await scrapeFamly(daysBack);
-        setProgress((prev) => ({
-          ...prev,
-          currentStep: 1,
-          famlyProcessed: count,
-          famlyTotal: count,
-        }));
-      },
-      () => markConnectionError("famly"),
-    );
-    stopWatcher();
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    setProgress((prev) => ({ ...prev, visible: false, mode: null }));
+    const safeStop = () => {
+      stopWatcher?.();
+    };
+    try {
+      await runScrapeOperation(
+        async () => {
+          const count = await scrapeFamly(daysBack);
+          setProgress((prev) => ({
+            ...prev,
+            currentStep: 1,
+            famlyProcessed: count,
+            famlyTotal: count,
+          }));
+        },
+        () => markConnectionError("famly"),
+      );
+    } finally {
+      safeStop();
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      setProgress((prev) => ({ ...prev, visible: false, mode: null }));
+    }
   };
 
   const handleScrapeBabyConnect = async (daysBack: number = scrapeDaysBack) => {
@@ -343,21 +349,27 @@ const App: React.FC = () => {
       syncTotal: 0,
     });
     const stopWatcher = startScrapeWatcher("baby_connect");
-    await runScrapeOperation(
-      async () => {
-        const count = await scrapeBabyConnect(daysBack);
-        setProgress((prev) => ({
-          ...prev,
-          currentStep: 1,
-          babyProcessed: count,
-          babyTotal: count,
-        }));
-      },
-      () => markConnectionError("baby_connect"),
-    );
-    stopWatcher();
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    setProgress((prev) => ({ ...prev, visible: false, mode: null }));
+    const safeStop = () => {
+      stopWatcher?.();
+    };
+    try {
+      await runScrapeOperation(
+        async () => {
+          const count = await scrapeBabyConnect(daysBack);
+          setProgress((prev) => ({
+            ...prev,
+            currentStep: 1,
+            babyProcessed: count,
+            babyTotal: count,
+          }));
+        },
+        () => markConnectionError("baby_connect"),
+      );
+    } finally {
+      safeStop();
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      setProgress((prev) => ({ ...prev, visible: false, mode: null }));
+    }
   };
 
   const handleScrapeAll = async () => {
@@ -376,34 +388,61 @@ const App: React.FC = () => {
       syncTotal: 0,
     });
     const stopFamlyWatcher = startScrapeWatcher("famly");
-    await runScrapeOperation(
-      async () => {
-        const famlyCount = await scrapeFamly(scrapeDaysBack);
-        setProgress((prev) => ({
-          ...prev,
-          currentStep: 1,
-          label: "Scraping Baby Connect...",
-          famlyProcessed: famlyCount,
-          famlyTotal: famlyCount,
-        }));
-        stopFamlyWatcher();
-        const stopBabyWatcher = startScrapeWatcher("baby_connect");
-        const babyCount = await scrapeBabyConnect(scrapeDaysBack);
-        setProgress((prev) => ({
-          ...prev,
-          currentStep: 2,
-          babyProcessed: babyCount,
-          babyTotal: babyCount,
-        }));
+    let famlyWatcherStopped = false;
+    const stopFamly = () => {
+      if (!famlyWatcherStopped) {
+        stopFamlyWatcher?.();
+        famlyWatcherStopped = true;
+      }
+    };
+    let stopBabyWatcher: (() => void) | null = null;
+    let babyWatcherStopped = false;
+    const stopBaby = () => {
+      if (!babyWatcherStopped && stopBabyWatcher) {
         stopBabyWatcher();
-      },
-      () => {
-        markConnectionError("famly");
-        markConnectionError("baby_connect");
-      },
-    );
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    setProgress((prev) => ({ ...prev, visible: false, mode: null }));
+        babyWatcherStopped = true;
+        stopBabyWatcher = null;
+      }
+    };
+    try {
+      await runScrapeOperation(
+        async () => {
+          try {
+            const famlyCount = await scrapeFamly(scrapeDaysBack);
+            setProgress((prev) => ({
+              ...prev,
+              currentStep: 1,
+              label: "Scraping Baby Connect...",
+              famlyProcessed: famlyCount,
+              famlyTotal: famlyCount,
+            }));
+          } finally {
+            stopFamly();
+          }
+          stopBabyWatcher = startScrapeWatcher("baby_connect");
+          try {
+            const babyCount = await scrapeBabyConnect(scrapeDaysBack);
+            setProgress((prev) => ({
+              ...prev,
+              currentStep: 2,
+              babyProcessed: babyCount,
+              babyTotal: babyCount,
+            }));
+          } finally {
+            stopBaby();
+          }
+        },
+        () => {
+          markConnectionError("famly");
+          markConnectionError("baby_connect");
+        },
+      );
+    } finally {
+      stopFamly();
+      stopBaby();
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      setProgress((prev) => ({ ...prev, visible: false, mode: null }));
+    }
   };
 
   const handleSyncAll = async () => {

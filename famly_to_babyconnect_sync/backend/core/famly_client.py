@@ -250,6 +250,14 @@ class FamlyClient:
             except PlaywrightTimeoutError as exc:
                 last_error = exc
                 logger.warning("Famly scrape: selector %s not found, trying fallback", selector)
+        try:
+            logger.info("Famly scrape: selecting first available child entry as fallback")
+            fallback_locator = page.locator(GENERIC_CHILD_LINK_SELECTOR)
+            fallback_locator.first.wait_for(state="visible", timeout=5000)
+            fallback_locator.first.click()
+            return
+        except Exception as exc:
+            last_error = exc if last_error is None else last_error
         raise RuntimeError(
             "Unable to locate child profile link in Famly. Set FAMLY_CHILD_ID env var if multiple children exist."
         ) from last_error
