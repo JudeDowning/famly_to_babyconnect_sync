@@ -16,6 +16,10 @@
 - Added an “Ignore” toggle beneath each Famly entry so you can mark duplicates directly in the comparison view; ignored rows gray out and are excluded from the “missing” counts.
 - Rebuilt the frontend bundle with the new controls.
 
+## 0.0.22
+- Ignored Famly cards now show a hatched overlay across the entire tile so it’s obvious they’ll be skipped during syncs.
+- Rebuilt the frontend bundle to include the updated styling.
+
 ## 0.0.17
 - Status chips now reset to green after a successful scrape and show “Last scrape: DD/MM/YY HH:MM” by exposing the most recent scrape timestamp from the backend.
 - The `/api/status` endpoint now returns `last_scraped_at` for Famly and Baby Connect so the UI can render those timestamps.

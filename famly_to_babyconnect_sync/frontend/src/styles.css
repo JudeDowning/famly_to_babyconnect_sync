@@ -755,8 +755,24 @@ body {
   color: rgba(255, 255, 255, 0.4);
 }
 .event-card--ignored {
-  opacity: 0.65;
+  opacity: 0.7;
+  position: relative;
 }
+.event-card--ignored::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 18px;
+  background-image: repeating-linear-gradient(
+    135deg,
+    rgba(248, 250, 252, 0.12),
+    rgba(248, 250, 252, 0.12) 6px,
+    transparent 6px,
+    transparent 12px
+  );
+  pointer-events: none;
+}
+
 
 .arrow-pill {
   width: 44px;
