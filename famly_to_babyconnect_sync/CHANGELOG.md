@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.25
+- Relaxed the duplicate detector by stripping portion descriptors (text inside parentheses) from Famly detail lines, so meals like "Fruit platter (Half)" vs "Fruit platter (Little)" still count as duplicates.
+- Rebuilt the frontend bundle with the updated normalization.
+
 ## 0.0.24
 - Duplicate detection now looks at the explicit time tokens embedded in Famly detail lines, so solids/meals logged at 16:05 vs 15:50 are correctly highlighted even if their stored `start_time_utc` matches.
 - Rebuilt the frontend bundle with the improved detector.
@@ -10,7 +14,7 @@
 - Rebuilt the frontend bundle with the duplicate detector and styling tweaks.
 
 ## 0.0.22
-- Ignored Famly cards now show a hatched overlay across the entire tile so it’s obvious they’ll be skipped during syncs.
+- Ignored Famly cards now show a hatched overlay across the entire tile so itâ€™s obvious theyâ€™ll be skipped during syncs.
 - Rebuilt the frontend bundle to include the updated styling.
 
 ## 0.0.21
@@ -26,7 +30,7 @@
 - Rebuilt the frontend bundle to ship the mobile layout tweak.
 
 ## 0.0.18
-- Day column headers now use a shorter weekday (e.g. "Fri") and a reduced font size so the Famly/date/Baby Connect labels no longer overlap on 375×667 mobile layouts.
+- Day column headers now use a shorter weekday (e.g. "Fri") and a reduced font size so the Famly/date/Baby Connect labels no longer overlap on 375Ã—667 mobile layouts.
 - Rebuilt the frontend bundle to include the CSS/JS changes.
 
 ## 0.0.17
@@ -72,8 +76,8 @@
 - Fixed residual mojibake in the progress overlay and rebuilt the frontend bundle.
 
 ## 0.0.6
-- Made the Famly child profile selector configurable via `FAMLY_CHILD_ID` and added a fallback that clicks the first child entry when the configured ID isn’t found. Scrape failures now log a clear runtime error instead of timing out silently.
-- Cleaned up the progress overlay text so it displays "Scraping …" without mojibake.
+- Made the Famly child profile selector configurable via `FAMLY_CHILD_ID` and added a fallback that clicks the first child entry when the configured ID isnâ€™t found. Scrape failures now log a clear runtime error instead of timing out silently.
+- Cleaned up the progress overlay text so it displays "Scraping â€¦" without mojibake.
 - Rebuilt the frontend bundle after the text fix.
 
 ## 0.0.5

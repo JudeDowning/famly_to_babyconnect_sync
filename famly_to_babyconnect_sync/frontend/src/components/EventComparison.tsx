@@ -260,7 +260,8 @@ const stripTimePrefix = (
 };
 const normalizeLineForDuplicate = (text: string) => {
   const { remaining } = stripTimePrefix(text);
-  return (remaining || text).trim().toLowerCase();
+  const base = (remaining || text).toLowerCase();
+  return base.replace(/\([^)]*\)/g, "").replace(/\s+/g, " ").trim();
 };
 const extractEntryTimeToken = (event: NormalisedEvent): string => {
   const lines = Array.isArray(event.raw_data?.detail_lines)
