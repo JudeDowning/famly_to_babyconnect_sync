@@ -46,13 +46,50 @@ def parse_time_to_utc(time_str: str) -> datetime:
     Convert a scraped time string into a UTC datetime.
 
     Current logic:
-    - Try ISO-8601 parsing
-    - Try parsing HH:MM (assume today, local timezone, convert to UTC)
-    - Fall back to "now" if parsing fails
+    - Try ISO-8601 parsing (allowing trailing Z / missing TZ info)
+    - If the ISO string is embedded inside other text, extract it
+    - Fallback to the first HH:MM token (mainly for legacy paths)
     """
     if not time_str:
-        logger.warning("parse_time_to_utc: empty time string, defaulting to now")
-        return datetime.now(timezone.utc)
+        raise ValueError("parse_time_to_utc: empty time string")
+
+    cleaned = re.sub(r"\s+by\s+.*$", "", time_str.strip(), flags=re.IGNORECASE)
+    cleaned = cleaned.replace("–", "-")
+
+    def _try_iso(candidate: str) -> datetime | None:
+        trimmed = candidate.strip()
+        if not trimmed:
+            return None
+        if trimmed.endswith("Z"):
+            trimmed = trimmed[:-1] + "+00:00"
+        try:
+            parsed = datetime.fromisoformat(trimmed)
+        except ValueError:
+            return None
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        else:
+            parsed = parsed.astimezone(timezone.utc)
+        return parsed
+
+    iso_candidates = [cleaned]
+    embedded_iso = re.search(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?", cleaned)
+    if embedded_iso:
+        iso_candidates.insert(0, embedded_iso.group(0))
+
+    for candidate in iso_candidates:
+        parsed = _try_iso(candidate)
+        if parsed:
+            return parsed
+
+    time_match = re.search(r"\d{1,2}:\d{2}\s*(am|pm)?", cleaned, flags=re.IGNORECASE)
+    if time_match:
+        base = datetime.now(timezone.utc)
+        combined = _combine_date_with_time(base, time_match.group(0))
+        if combined:
+            return combined
+
+    raise ValueError(f"parse_time_to_utc: unable to parse '{time_str}'")
 
 def _combine_date_with_time(
     base_dt: datetime,
@@ -109,33 +146,6 @@ def _infer_end_time_from_detail(
     if end_dt <= start_time_utc:
         end_dt = end_dt + timedelta(days=1)
     return end_dt
-    cleaned = re.sub(r"\s+by\s+.*$", "", time_str.strip(), flags=re.IGNORECASE)
-    try:
-        return datetime.fromisoformat(cleaned)
-    except ValueError:
-        logger.debug("parse_time_to_utc: %s not ISO format", cleaned)
-
-    try:
-        if "to" in cleaned.lower():
-            parts = cleaned.lower().split("to")[0].strip()
-        else:
-            parts = cleaned.split("-")[0].strip()
-        numbers = re.findall(r"\d{1,2}", parts)
-        hour = int(numbers[0]) if numbers else 0
-        minute = int(numbers[1]) if len(numbers) > 1 else 0
-        am_pm_match = re.search(r"(am|pm)", parts, flags=re.IGNORECASE)
-        if am_pm_match:
-            meridiem = am_pm_match.group(1).lower()
-            if meridiem == "pm" and hour < 12:
-                hour += 12
-            if meridiem == "am" and hour == 12:
-                hour = 0
-        now = datetime.now(timezone.utc)
-        candidate = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
-        return candidate
-    except Exception:
-        logger.warning("parse_time_to_utc: unable to parse '%s', defaulting to now", time_str)
-        return datetime.now(timezone.utc)
 
 def build_fingerprint(
     child_name: str,

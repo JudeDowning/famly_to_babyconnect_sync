@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.0.30
+- Restored proper ISO timestamp parsing when normalising Famly/Baby Connect events so `start_time_utc` is derived from the scraped `event_datetime_iso` instead of silently defaulting to the current time, fixing the regression that caused scrapes to fail with `"NoneType has no attribute 'replace'"` errors.
+
 ## 0.0.29
 - Added a safety fallback when normalising events: if a Famly or Baby Connect entry is missing a parseable start time, we now default to the current UTC time instead of crashing, preventing fresh scrapes from failing mid-run.
 
