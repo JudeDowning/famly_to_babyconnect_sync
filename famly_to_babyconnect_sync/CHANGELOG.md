@@ -3,6 +3,10 @@
 ## 0.0.36
 - `/api/debug/events` (and the Settings → Debug viewer) now include each event's `fingerprint`, making it easier to compare Famly vs Baby Connect rows when troubleshooting matching issues.
 
+## 0.0.37
+- Canonical detail snippets now skip the Baby Connect auto-generated headline (child name, "Famly - …") and fall back to the note/original title, so the fingerprints hash the same text as Famly again.
+- `normalise_famly_event`/`normalise_babyconnect_event` pass the child name into the canonicaliser to ensure consistent hashes across both systems.
+
 ## 0.0.32
 - Front-end pairing now keys off the same canonical detail snippet used by the backend (ignoring the first detail line and `[Sync]` markers), so Famly entries you pushed into Baby Connect immediately show up as matched instead of lingering in the "Missing" list.
 

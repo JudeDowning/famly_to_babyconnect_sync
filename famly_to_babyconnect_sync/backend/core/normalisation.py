@@ -92,7 +92,12 @@ def parse_time_to_utc(time_str: str) -> datetime:
     raise ValueError(f"parse_time_to_utc: unable to parse '{time_str}'")
 
 
-def _canonical_details_snippet(raw_text: str, raw_data: Dict[str, Any]) -> str:
+def _canonical_details_snippet(
+    raw_text: str,
+    raw_data: Dict[str, Any],
+    *,
+    child_name: str | None = None,
+) -> str:
     """
     Produce a normalised snippet that is consistent between Famly and Baby Connect.
     - Ignore leading detail lines that are purely timestamps/ranges
@@ -107,6 +112,7 @@ def _canonical_details_snippet(raw_text: str, raw_data: Dict[str, Any]) -> str:
         cleaned = re.sub(r"\s+", " ", cleaned).strip().lower()
         return cleaned
 
+    child_lower = child_name.strip().lower() if child_name else None
     detail_lines = raw_data.get("detail_lines") if isinstance(raw_data, dict) else None
     normalized_lines: list[str] = []
     if isinstance(detail_lines, list):
@@ -114,7 +120,12 @@ def _canonical_details_snippet(raw_text: str, raw_data: Dict[str, Any]) -> str:
             if not line:
                 continue
             trimmed = line.strip()
+            lowered = trimmed.lower()
             if idx == 0 and re.search(r"\d{1,2}:\d{2}", trimmed):
+                continue
+            if child_lower and lowered.startswith(child_lower):
+                continue
+            if lowered.startswith("famly -"):
                 continue
             cleaned = _clean(trimmed)
             if cleaned:
@@ -124,8 +135,8 @@ def _canonical_details_snippet(raw_text: str, raw_data: Dict[str, Any]) -> str:
         return " | ".join(normalized_lines)
 
     for fallback in (
-        raw_data.get("original_title") if isinstance(raw_data, dict) else "",
         raw_data.get("note") if isinstance(raw_data, dict) else "",
+        raw_data.get("original_title") if isinstance(raw_data, dict) else "",
         raw_text,
     ):
         cleaned = _clean(fallback or "")
@@ -220,7 +231,11 @@ def normalise_famly_event(raw: RawFamlyEvent) -> Dict[str, Any]:
         logger.warning("normalise_famly_event: missing start time, defaulting to now")
         start_time_utc = datetime.now(timezone.utc)
     raw_data = raw.raw_data or {}
-    details_snippet = _canonical_details_snippet(raw.raw_text or "", raw_data)
+    details_snippet = _canonical_details_snippet(
+        raw.raw_text or "",
+        raw_data,
+        child_name=raw.child_name,
+    )
     fingerprint = build_fingerprint(
         child_name=raw.child_name,
         event_type=raw.event_type,
@@ -258,7 +273,11 @@ def normalise_babyconnect_event(raw: RawBabyConnectEvent) -> Dict[str, Any]:
         logger.warning("normalise_babyconnect_event: missing start time, defaulting to now")
         start_time_utc = datetime.now(timezone.utc)
     raw_data = raw.raw_data or {}
-    details_snippet = _canonical_details_snippet(raw.raw_text or "", raw_data)
+    details_snippet = _canonical_details_snippet(
+        raw.raw_text or "",
+        raw_data,
+        child_name=raw.child_name,
+    )
     fingerprint = build_fingerprint(
         child_name=raw.child_name,
         event_type=raw.event_type,
