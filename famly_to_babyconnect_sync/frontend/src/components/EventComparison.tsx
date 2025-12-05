@@ -284,18 +284,35 @@ const normalizeLineForDuplicate = (text: string) => {
 };
 
 const canonicalDetailSignature = (event: NormalisedEvent) => {
-  const detailLines = Array.isArray(event.raw_data?.detail_lines)
-    ? [...event.raw_data!.detail_lines!]
+  const rawData = event.raw_data ?? {};
+  const detailLines = Array.isArray(rawData.detail_lines)
+    ? [...rawData.detail_lines]
     : [];
-  const payloadLines =
-    detailLines.length > 1 ? detailLines.slice(1) : detailLines;
-  const normalizedLines = payloadLines
+  const meaningfulLines = detailLines.filter((line, idx) => {
+    if (!line) return false;
+    if (idx === 0 && /\d{1,2}:\d{2}/.test(line)) {
+      return false;
+    }
+    return true;
+  });
+  const normalizedLines = meaningfulLines
     .map((line) => normalizeLineForDuplicate(line))
     .filter(Boolean);
-  const fallback = normalizeLineForDuplicate(
-    (event.summary || event.raw_text || "").trim(),
-  );
-  return (normalizedLines.join("|") || fallback || "").trim();
+  const candidates = [
+    normalizedLines.join("|"),
+    rawData.original_title,
+    rawData.note,
+    event.summary,
+    event.raw_text,
+  ];
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    const cleaned = normalizeLineForDuplicate(candidate);
+    if (cleaned) {
+      return cleaned;
+    }
+  }
+  return "";
 };
 const extractEntryTimeToken = (event: NormalisedEvent): string => {
   const lines = Array.isArray(event.raw_data?.detail_lines)

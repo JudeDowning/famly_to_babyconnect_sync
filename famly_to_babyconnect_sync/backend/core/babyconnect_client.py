@@ -474,6 +474,36 @@ class BabyConnectClient:
             return f"{cleaned}{spacer}[Sync]"
         return "[Sync]"
 
+    def _detail_payload_lines(self, entry: Dict[str, Any]) -> List[str]:
+        raw_data = entry.get("raw_data") or {}
+        detail_lines = raw_data.get("detail_lines")
+        if not isinstance(detail_lines, list):
+            return []
+        payload: List[str] = []
+        for idx, line in enumerate(detail_lines):
+            if not line:
+                continue
+            if idx == 0 and re.search(r"\d{1,2}:\d{2}", line):
+                continue
+            payload.append(line.strip())
+        return payload
+
+    def _note_body_from_entry(self, entry: Dict[str, Any]) -> str | None:
+        payload = self._detail_payload_lines(entry)
+        if payload:
+            return " | ".join(payload)
+        raw_data = entry.get("raw_data") or {}
+        for candidate in (
+            raw_data.get("original_title"),
+            raw_data.get("note"),
+            entry.get("note"),
+            entry.get("summary"),
+            entry.get("raw_text"),
+        ):
+            if candidate and candidate.strip():
+                return candidate.strip()
+        return None
+
     def _create_diaper_entry(self, page: Page, entry: Dict[str, Any]) -> None:
         logger.info("BabyConnect: opening diaper dialog for entry %s", entry.get("id") or entry.get("summary"))
         dialog = self._open_entry_dialog(page, "showDiaperDlg")
@@ -507,7 +537,7 @@ class BabyConnectClient:
 
         self._ensure_note_visible(dialog)
         dialog.locator("#notetxt").fill("")
-        dialog.locator("#notetxt").type("[Sync]")
+        dialog.locator("#notetxt").type(self._append_sync_marker(self._note_body_from_entry(entry)))
 
         dialog.locator(".defaultDlgButtonSave").click()
         try:
@@ -539,8 +569,9 @@ class BabyConnectClient:
         self._fill_sleep_end_from_detail(dialog, entry)
 
         self._ensure_note_visible(dialog)
-        dialog.locator("#notetxt").fill("")
-        dialog.locator("#notetxt").type("[Sync]")
+        dialog.locator("#notetxt").fill(
+            self._append_sync_marker(self._note_body_from_entry(entry))
+        )
 
         dialog.locator(".defaultDlgButtonSave").click()
         try:

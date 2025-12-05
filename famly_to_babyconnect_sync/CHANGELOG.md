@@ -3,6 +3,9 @@
 ## 0.0.32
 - Front-end pairing now keys off the same canonical detail snippet used by the backend (ignoring the first detail line and `[Sync]` markers), so Famly entries you pushed into Baby Connect immediately show up as matched instead of lingering in the "Missing" list.
 
+## 0.0.33
+- Baby Connect automation now copies the Famly detail text (e.g. "Loose", meal menus, sleep summaries) into the note field before appending `[Sync]`, and the comparison view treats that note/original title as part of the canonical signature. This lets nappies, sleeps, and other entries created via the add-on line up 1:1 with their Famly counterparts.
+
 ## 0.0.31
 - Fingerprints now use a canonical detail snippet for both Famly and Baby Connect events (stripping the first detail line and `[Sync]` suffixes), so solids/nappies you sync into Baby Connect match back to their Famly originals instead of appearing as outstanding items.
 
